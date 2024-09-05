@@ -14,6 +14,8 @@ using Statistics
 using StatsBase
 using TensorBoardLogger
 using Zygote
+using PyCall
+using HDF5
 
 export DoubleIntegrator
 export Pendulum
@@ -26,6 +28,7 @@ export RobotArm
 export RobotDog
 
 export collect_data
+export collect_python_data
 export train_dynamics
 export train_constraint
 export pretrain_value

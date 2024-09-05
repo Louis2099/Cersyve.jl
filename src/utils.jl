@@ -60,6 +60,73 @@ function collect_data(
     save(save_path, "data", data_prep)
 end
 
+# function collect_python_data(
+#     pickle_path::String,
+#     x_low::Vector{Float32},
+#     x_high::Vector{Float32},
+#     u_low::Vector{Float32},
+#     u_high::Vector{Float32},
+#     dynamics::Function,
+#     terminated::Function;
+#     step_num::Int64 = 1000000,
+#     max_ep_len::Int64 = 100,
+#     noise_scale::Float64 = 0.01,
+#     save_path::Union{String, Nothing} = nothing,
+# )
+
+function collect_python_data(
+    pickle_path::String,
+    x_dim::Int64 = 9,
+    u_dim::Int64 = 7,
+    step_num::Int64 = 1000000,
+    noise_scale::Float64 = 0.01,
+    save_path::Union{String, Nothing} = nothing,
+)
+
+     # Load the pickle file using PyCall
+     
+     #@pyimport pickle
+     #pickle = pyimport("pickle")
+     #pyopen = pybuiltin("open")
+     #py_dict = pickle.load(pyopen(pickle_path, "rb"))
+     file = h5open(pickle_path, "r")
+     datasets = HDF5.get_datasets(file)
+     step_num = size(datasets[1])[2]
+
+     println("step_num: ", step_num)
+     data = Dict(
+        "x" => Matrix{Float32}(undef, x_dim, step_num),
+        "u" => Matrix{Float32}(undef, u_dim, step_num),
+        "dx" => Matrix{Float32}(undef,x_dim, step_num),
+    )  
+    x = datasets[3]
+    u = datasets[2]
+    dx = datasets[1]
+    for i in ProgressBar(1:step_num)
+        data["x"][:, i] = x[:, i]
+        data["u"][:, i] = u[:, i]
+        data["dx"][:, i] = dx[:, i]
+    end
+    
+    data_prep = Dict{String, Array{Float32}}()
+    rng = MersenneTwister(1)
+    for (k, v) in data
+        v_mean = mean(v; dims=2)[:, 1]
+        v_std = std(v; dims=2)[:, 1]
+        noise = Float32(noise_scale) * randn(rng, Float32, size(v))
+        data_prep[k] = (v .- v_mean) ./ v_std + noise
+        data_prep[k * "_mean"] = v_mean
+        data_prep[k * "_std"] = v_std
+    end
+
+    if isnothing(save_path)
+        save_path = joinpath(@__DIR__, "../data/data.jld2")
+    end
+    save(save_path, "data", data_prep)
+end
+
+
+
 function train_dynamics(
     data::Dict{String, Array{Float32}},
     f_model::Chain;

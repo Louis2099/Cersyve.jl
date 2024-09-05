@@ -4,21 +4,27 @@ using Random
 
 task = Unicycle
 hidden_sizes = [32, 32]
-data_path = joinpath(@__DIR__, "../data/unicycle_data.jld2")
-log_dir = joinpath(@__DIR__, "../log/unicycle/")
+data_path = joinpath(@__DIR__, "../data/dynamic_data.jld2")
+log_dir = joinpath(@__DIR__, "../log/dynamic/")
 seed = 1
 
 Random.seed!(seed)
 
 data = JLD2.load(data_path)["data"]
 
-f_model = Cersyve.create_mlp(task.x_dim + task.u_dim, task.x_dim, hidden_sizes)
-
+f_model = Cersyve.create_mlp(9 + 7, 9, hidden_sizes)
+#f_model = Cersyve.create_mlp(task.x_dim + task.u_dim, task.x_dim, hidden_sizes)
+# x[end, goal, hazard]
+# u[joint_pos*7]
+x_high = Float32[0.9091, 0.9091, 0.9091, 0.9091, 0.9091, 0.2, 0.9091, 0.9091, 0.2]
+x_low = Float32[0, 0, 0, 0.3, 0.3, 0, 0.3, 0.3, 0]
+u_high = Float32[3.14159265359, 2.2497294058206907, 3.14159265359, 2.5795966344476193, 3.14159265359, 2.0996310901491784, 3.14159265359]
+u_low = Float32[-3.14159265359, -2.2497294058206907, -3.14159265359, -2.5795966344476193, -3.14159265359, -2.0996310901491784, -3.14159265359]
 train_dynamics(
     data,
     f_model;
     penalty="APA",
-    space_size=[task.x_high; task.u_high] - [task.x_low; task.u_low],
+    space_size=[x_high; u_high] - [x_low; u_low],
     apa_coef=0.01,
     log_dir=log_dir,
 )

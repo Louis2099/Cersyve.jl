@@ -33,13 +33,27 @@ function finetune_value(
     eval_every::Int64 = 10,
     save_every::Int64 = 1000,
 )
+    function update_value_network!(model::Any, loss_fn, opt_state)
+        # Calculate gradients
+        loss, grad = Flux.withgradient(loss_fn, model)
+        value_grad = grad[1][:value_network]
+        #println(typeof(value_grad))
+        #println(sizeof(value_grad))
+        #grad = Flux.gradient(() -> loss_fn, Flux.params(model.value_network))
+        
+        Flux.update!(opt_state, model.value_network, value_grad)
+        return loss
+    end
+    
+
     skipped = 0
     verified = 0
     con_start_values = nothing
     inv_start_values = nothing
 
     buffer = Buffer(capacity, length(x_low))
-    opt_state = Flux.setup(Adam(lr), V_model)
+    #opt_state = Flux.setup(Adam(lr), V_model)
+    opt_state = Flux.setup(Adam(lr), V_model.value_network)
     if isnothing(log_dir)
         log_dir = joinpath(@__DIR__, "../log/")
     end
@@ -139,8 +153,18 @@ function finetune_value(
                 return loss
             end
 
+            #loss, grad = Flux.withgradient(value_loss_fn, V_model)
+            #Flux.update!(opt_state, V_model, grad[1])
             loss, grad = Flux.withgradient(value_loss_fn, V_model)
-            Flux.update!(opt_state, V_model, grad[1])
+
+            value_grad = grad[1]
+            if isnothing(value_grad)
+                println(grad)
+                continue
+            end
+            value_grad = value_grad[:value_network]
+            Flux.update!(opt_state, V_model.value_network, value_grad)
+            #loss = update_value_network!(V_model, value_loss_fn, opt_state)
 
             with_logger(logger) do
                 @info "finetune" sample_size=n log_step_increment=0
@@ -156,9 +180,9 @@ function finetune_value(
         end
 
         if skipped == max_skip
-            jldsave(joinpath(log_path, "/V_finetune.jld2"); state=Flux.state(V_model))
+            jldsave(joinpath(log_path, "V_finetune.jld2"); state=Flux.state(V_model))
             println("----- Verification Starts -----")
-            con_res, inv_res = verify_feasible_region(x_low, x_high, V_h_model, V_V_prime_model;
+            con_res, inv_res = verify_value(x_low, x_high, V_h_model, V_V_prime_model;
                 con_start_values=con_start_values, inv_start_values=inv_start_values)
             println("----- Verification Ends -----")
 
@@ -199,7 +223,7 @@ function finetune_value(
         end
 
         if i % save_every == 0
-            jldsave(joinpath(log_path, "/V_finetune.jld2"); state=Flux.state(V_model))
+            jldsave(joinpath(log_path, "V_finetune.jld2"); state=Flux.state(V_model))
         end
     end
 end
