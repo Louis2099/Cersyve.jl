@@ -91,7 +91,8 @@ function collect_python_data(
      #py_dict = pickle.load(pyopen(pickle_path, "rb"))
      file = h5open(pickle_path, "r")
      datasets = HDF5.get_datasets(file)
-     step_num = size(datasets[1])[2]
+     #step_num = size(datasets[1])[2]
+     
 
      println("step_num: ", step_num)
      data = Dict(
@@ -111,12 +112,27 @@ function collect_python_data(
     data_prep = Dict{String, Array{Float32}}()
     rng = MersenneTwister(1)
     for (k, v) in data
+        # if k == "dx"
+        #     v[4:9,:] .= 0.0
+        #     v_mean = mean(v; dims=2)[:, 1]
+        #     v_std = std(v; dims=2)[:, 1]
+        #     # prevetn divide by 0
+        #     v_std[4:9] .= 1.0
+        #     noise = Float32(noise_scale) * randn(rng, Float32, size(v))
+        #     data_prep[k] = (v .- v_mean) ./ v_std + noise
+        #     data_prep[k * "_mean"] = v_mean
+        #     v_std[4:9] .= 0.0
+        #     data_prep[k * "_std"] = v_std
+        # else
         v_mean = mean(v; dims=2)[:, 1]
         v_std = std(v; dims=2)[:, 1]
         noise = Float32(noise_scale) * randn(rng, Float32, size(v))
         data_prep[k] = (v .- v_mean) ./ v_std + noise
         data_prep[k * "_mean"] = v_mean
         data_prep[k * "_std"] = v_std
+        
+        
+
     end
 
     if isnothing(save_path)

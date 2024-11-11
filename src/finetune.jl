@@ -52,8 +52,11 @@ function finetune_value(
     inv_start_values = nothing
 
     buffer = Buffer(capacity, length(x_low))
-    #opt_state = Flux.setup(Adam(lr), V_model)
-    opt_state = Flux.setup(Adam(lr), V_model.value_network)
+
+    ######################################################
+    opt_state = Flux.setup(Adam(lr), V_model)
+    #opt_state = Flux.setup(Adam(lr), V_model[2])
+    ######################################################
     if isnothing(log_dir)
         log_dir = joinpath(@__DIR__, "../log/")
     end
@@ -62,6 +65,20 @@ function finetune_value(
 
     V_h_model = create_value_constraint_model(V_model, h_model)
     V_V_prime_model = create_value_next_value_model(V_model, f_pi_model)
+
+    params = Flux.params(V_V_prime_model)
+    # Check for NaN values
+    # for (i, p) in enumerate(params)
+    #     if any(isnan, p)
+    #         println("Parameter $i contains NaN values.")
+    #     end
+    # end
+
+    ######################################################
+    # # test verification
+    # con_res, inv_res = verify_value(x_low, x_high, V_h_model, V_V_prime_model;
+    #             con_start_values=con_start_values, inv_start_values=inv_start_values)
+    ######################################################
 
     for i in ProgressBar(1:max_iter)
         if (length(buffer.stored) < search_stop)
@@ -148,23 +165,28 @@ function finetune_value(
                 else
                     reg_loss = 0
                 end
-
+                # println("n_con: ", con_loss)
+                # println("n_inv: ", inv_loss)
+                # println("n_reg: ", reg_loss)
                 loss = (con_loss + inv_loss) / max(n_con + n_inv, 1) + reg_coef * reg_loss
                 return loss
             end
-
-            #loss, grad = Flux.withgradient(value_loss_fn, V_model)
-            #Flux.update!(opt_state, V_model, grad[1])
+            
+            # regular
             loss, grad = Flux.withgradient(value_loss_fn, V_model)
-
-            value_grad = grad[1]
-            if isnothing(value_grad)
-                println(grad)
-                continue
-            end
-            value_grad = value_grad[:value_network]
-            Flux.update!(opt_state, V_model.value_network, value_grad)
-            #loss = update_value_network!(V_model, value_loss_fn, opt_state)
+            Flux.update!(opt_state, V_model, grad[1])
+            
+            ######################################################
+            # finetune rcppol
+            # loss, grad = Flux.withgradient(value_loss_fn, V_model)
+            # value_grad = grad[1]
+            # if isnothing(value_grad)
+            #     println(grad)
+            #     continue
+            # end
+            # value_grad = value_grad[1][2]
+            # Flux.update!(opt_state, V_model[2], value_grad)
+            ######################################################
 
             with_logger(logger) do
                 @info "finetune" sample_size=n log_step_increment=0
