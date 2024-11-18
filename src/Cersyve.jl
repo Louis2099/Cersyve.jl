@@ -32,6 +32,7 @@ export collect_python_data
 export train_dynamics
 export train_constraint
 export pretrain_value
+export pretrain_Q
 export finetune_value
 export verify_value
 

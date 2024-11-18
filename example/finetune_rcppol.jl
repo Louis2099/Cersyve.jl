@@ -5,13 +5,27 @@ using Random
 using ModelVerification
 
 task = Unicycle
-value_hidden_sizes = [32, 32]
+seed = 1
+
+value_hidden_sizes = [64, 64]
 dynamics_hidden_sizes = [32, 32]
 constraint_hidden_sizes = [16]
-data_path = joinpath(@__DIR__, "../data/tilted_pendulum_data_1.5m.jld2")
-model_dir = joinpath(@__DIR__, "../model/tilted_pendulum/")
-log_dir = joinpath(@__DIR__, "../log/tilted_pendulum_1.5m/")
-seed = 1
+
+# data_path = joinpath(@__DIR__, "../data/tilted_pendulum_data_1.5m.jld2")
+# model_dir = joinpath(@__DIR__, "../model/tilted_pendulum/")
+# log_dir = joinpath(@__DIR__, "../log/tilted_pendulum_1.5m/")
+
+data_path = "/home/jiaxingl/project/Cersyve.jl/model/simple_pendulum/dynamic_data.jld2"
+model_dir = "/home/jiaxingl/project/Cersyve.jl/model/simple_pendulum"
+log_dir = "/home/jiaxingl/project/Cersyve.jl/model/simple_pendulum"
+
+
+x_high = Float32[1, 1, 5.0]
+x_low = Float32[-1, -1, -5.0]
+u_high = Float32[3.0]
+u_low = Float32[-3.0]
+x_dim = 3
+u_dim = 1
 
 # x_high = Float32[0.9091, 0.9091, 0.9091, 0.9091, 0.9091, 0.2, 0.9091, 0.9091, 0.2]
 # x_low = Float32[0, 0, 0, 0.3, 0.3, 0, 0.3, 0.3, 0]
@@ -19,14 +33,6 @@ seed = 1
 # u_low = Float32[-3.14159265359, -2.2497294058206907, -3.14159265359, -2.5795966344476193, -3.14159265359, -2.0996310901491784, -3.14159265359]
 # x_dim = 9
 # u_dim = 7
-
-x_high = Float32[pi, 8.0]
-x_low = Float32[-pi, -8.0]
-u_high = Float32[2.0]
-u_low = Float32[-2.0]
-x_dim = 2
-u_dim = 1
-
 
 Random.seed!(seed)
 
