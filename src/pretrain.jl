@@ -79,7 +79,9 @@ function pretrain_Q(
     log_dir::Union{String, Nothing} = nothing,
 )
     rng = MersenneTwister(1)
-    optim = Flux.setup(AdamW(lr, (0.9, 0.999), weight_decay), Q_model)
+    trainable_params = Flux.params(Q_model[1][1][2], Q_model[1][1][3], Q_model[2])
+    optim = Flux.setup(AdamW(lr, (0.9, 0.999), weight_decay), trainable_params)
+    # optim = Flux.setup(AdamW(lr, (0.9, 0.999), weight_decay), Q_model)
     if isnothing(log_dir)
         log_dir = joinpath(@__DIR__, "../log/")
     end
@@ -103,13 +105,15 @@ function pretrain_Q(
                 return mean((v_pred - v_targ) .^ 2) + snr_loss
             elseif penalty == "APA"
                 noise = Float32(noise_scale) * space_size / 2 .* randn(rng, Float32, size(state_action))
-                v_pred, apa_loss = forward_with_apa(m, [state_action state_action + noise]; alpha=apa_coef)
+                # v_pred, apa_loss = forward_with_apa(m, [state_action state_action + noise]; alpha=apa_coef)
+                v_pred, apa_loss = forward_with_affine_apa(m, [state_action state_action + noise]; alpha=apa_coef)
                 return mean((v_pred - v_targ) .^ 2) + apa_loss
             end
         end
 
+        # loss, grad = Flux.withgradient(loss_fn, Q_model)
         loss, grad = Flux.withgradient(loss_fn, Q_model)
-        Flux.update!(optim, Q_model, grad[1])
+        Flux.update!(optim, trainable_params, grad)
 
         with_logger(logger) do
             @info "pretrain" loss=loss
@@ -118,5 +122,5 @@ function pretrain_Q(
         end
     end
 
-    jldsave(joinpath(log_path, "/Q_pretrain.jld2"); state=Flux.state(Q_model))
+    jldsave(joinpath(log_path, "Q_pretrain.jld2"); state=Flux.state(Q_model))
 end

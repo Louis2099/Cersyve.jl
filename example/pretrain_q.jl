@@ -2,7 +2,6 @@ using Cersyve
 using Flux
 using JLD2
 using Random
-# include("affine_Q.jl")
 
 struct FilterX
     W::Matrix  # Weight matrix
