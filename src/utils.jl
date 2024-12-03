@@ -286,6 +286,39 @@ function forward_with_apa(
     return x[:, 1:batch_size], apa_loss
 end
 
+function forward_with_affine_apa(
+    model::Chain,
+    x::Matrix{Float32};
+    alpha::Float64 = 0.01,
+    eps::Float64 = 1e-4,
+)::Tuple{Matrix{Float32}, Float64}
+    # Activation pattern alignment
+    batch_size = div(size(x, 2), 2)
+    apa_loss = 0
+    layer_id = 1
+    temp_x = x
+    for layer in model.layers
+        if layer_id == 1
+            for sub_layer in layer[1]
+                temp_x = sub_layer.weight * temp_x .+ sub_layer.bias
+                x_und = temp_x[:, 1:batch_size]
+                x_dis = temp_x[:, batch_size + 1:end]
+            
+                apa_loss += alpha * mean(sum(max.(-x_und .* x_dis, 0) ./
+                Zygote.dropgrad(max.(-x_und .* x_dis, eps)), dims=1))
+                temp_x = sub_layer.σ(temp_x)
+            end
+        end
+        layer_id += 1
+    end
+    x = model(x)
+    return x[:, 1:batch_size], apa_loss
+end
+
+
+
+
+
 function get_activation_pattern(model::Any, x::Matrix{Float32})::BitMatrix
     p = []
 
