@@ -253,7 +253,7 @@ end
 
 function finetune_Q(
     task::Any,
-    V_model::Any,
+    Q_model::Any,
     f_pi_model::Any,
     h_model::Any,
     x_low::Vector{Float32},
@@ -287,7 +287,7 @@ function finetune_Q(
     eval_every::Int64 = 10,
     save_every::Int64 = 1000,
 )
-    function update_value_network!(model::Any, loss_fn, opt_state)
+    function update_value_network!(model::Any, loss_fn, opt_state, trainable_params)
         # Calculate gradients
         loss, grad = Flux.withgradient(loss_fn, model)
         value_grad = grad[1][:value_network]
@@ -308,8 +308,9 @@ function finetune_Q(
     buffer = Buffer(capacity, length(x_low))
 
     ######################################################
-    opt_state = Flux.setup(Adam(lr), V_model)
-    #opt_state = Flux.setup(Adam(lr), V_model[2])
+    trainable_params = Flux.params(Q_model[1][1][2], Q_model[1][1][3], Q_model[2])
+    opt_state = Flux.setup(Adam(lr), trainable_params)
+    #opt_state = Flux.setup(Adam(lr), Q_model[2])
     ######################################################
     if isnothing(log_dir)
         log_dir = joinpath(@__DIR__, "../log/")
@@ -317,38 +318,24 @@ function finetune_Q(
     log_path = joinpath(log_dir, "finetune_" * Dates.format(Dates.now(), "yyyymmdd_HHMMSS"))
     logger = TBLogger(log_path)
 
-    V_h_model = create_value_constraint_model(V_model, h_model)
-    V_V_prime_model = create_value_next_value_model(V_model, f_pi_model)
-
-    params = Flux.params(V_V_prime_model)
-    # Check for NaN values
-    # for (i, p) in enumerate(params)
-    #     if any(isnan, p)
-    #         println("Parameter $i contains NaN values.")
-    #     end
-    # end
-
-    ######################################################
-    # # test verification
-    # con_res, inv_res = verify_value(x_low, x_high, V_h_model, V_V_prime_model;
-    #             con_start_values=con_start_values, inv_start_values=inv_start_values)
-    ######################################################
+    Q_h_model = create_Q_constraint_model(Q_model, h_model)
+    Q_Q_prime_model = create_Q_Q_prime(Q_model, task)
 
     for i in ProgressBar(1:max_iter)
         if (length(buffer.stored) < search_stop)
             x = uniform(x_low, x_high, round(Int64, search_size / bnd_ratio))
-            v = V_model(x)[1, :]
+            v = Q_model(x)[1, :]
             x_bnd = x[:, (v .> -bnd_eps) .& (v .<= tol)]
             bnd_ratio = bnd_ratio_avg * bnd_ratio + (1 - bnd_ratio_avg) * size(x_bnd, 2) / size(x, 2)
             bnd_ratio = clamp(bnd_ratio, min_bnd_ratio, max_bnd_ratio)
 
             if search_method == "BGB"
-                x_pgd = boundary_guided_search_Q(task, x_bnd, x_low, x_high, h_model, V_model, f_pi_model;
+                x_pgd = boundary_guided_search_Q(task, x_bnd, x_low, x_high, h_model, Q_model, f_pi_model;
                     pgd_step=pgd_step, pgd_eps=pgd_eps, backtrack_step=backtrack_step,
                     length_discount=length_discount, bound_guide=true, direct_discount=direct_discount,
                     tol=tol)
             end
-            con, inv = filter_counterexample_Q(task, x_pgd, h_model, V_model, f_pi_model; tol=tol)
+            con, inv = filter_counterexample_Q(task, x_pgd, h_model, Q_model, f_pi_model; tol=tol)
             ce = con .| inv
             push!(buffer, x_pgd[:, ce])
 
@@ -365,7 +352,7 @@ function finetune_Q(
 
             n = min(sample_size, length(buffer.stored))
             x, c = pop!(buffer, n)
-            con, inv = filter_counterexample_Q(task, x, h_model, V_model, f_pi_model; tol=tol)
+            con, inv = filter_counterexample_Q(task, x, h_model, Q_model, f_pi_model; tol=tol)
             x_con, x_inv = x[:, con], x[:, inv]
             c[con .| inv] .= 0
             c[.~con .& .~inv] .+= 1
@@ -379,9 +366,9 @@ function finetune_Q(
                 if reg_method == "ESR"
                     # entering state regularization
                     x_reg = uniform(x_low, x_high, search_size)
-                    h_reg = h_model(x_reg)[1, :]
-                    v_reg = V_model(x_reg)[1, :]
-                    v_reg_prime = V_model(f_pi_model(x_reg))[1, :]
+                    h_reg = h_model(x_reg[:task.x_dim, :])[1, :]
+                    v_reg = Q_model(x_reg)[1, :]
+                    v_reg_prime = Q_model(f_pi_model(x_reg[:task.x_dim, :]))[1, :]
                     entering = (h_reg .<= -eps_h) .& (v_reg .> 0) .& (
                         v_reg .<= eps_v) .& (v_reg_prime .<= -eps_v)
                     x_reg = x_reg[:, entering]
@@ -395,21 +382,21 @@ function finetune_Q(
                 n_reg = 0
             end
 
-            function value_loss_fn(V_model)
+            function value_loss_fn(Q_model)
                 if n_con > 0
-                    con_loss = sum(-V_model(x_con))
+                    con_loss = sum(-Q_model(x_con))
                 else
                     con_loss = 0
                 end
 
                 if n_inv > 0
-                    inv_loss = sum(-V_model(x_inv) + V_model(f_pi_model(x_inv)))
+                    inv_loss = sum(-Q_model(x_inv) + Q_model(f_pi_model(x_inv[:task.x_dim, :])))
                 else
                     inv_loss = 0
                 end
 
                 if n_reg > 0
-                    reg_loss = mean(V_model(x_reg))
+                    reg_loss = mean(Q_model(x_reg))
                 else
                     reg_loss = 0
                 end
@@ -421,19 +408,19 @@ function finetune_Q(
             end
             
             # regular
-            loss, grad = Flux.withgradient(value_loss_fn, V_model)
-            Flux.update!(opt_state, V_model, grad[1])
+            loss, grad = Flux.withgradient(value_loss_fn, Q_model)
+            Flux.update!(opt_state, trainable_params, grad[1])
             
             ######################################################
             # finetune rcppol
-            # loss, grad = Flux.withgradient(value_loss_fn, V_model)
+            # loss, grad = Flux.withgradient(value_loss_fn, Q_model)
             # value_grad = grad[1]
             # if isnothing(value_grad)
             #     println(grad)
             #     continue
             # end
             # value_grad = value_grad[1][2]
-            # Flux.update!(opt_state, V_model[2], value_grad)
+            # Flux.update!(opt_state, Q_model[2], value_grad)
             ######################################################
 
             with_logger(logger) do
@@ -450,9 +437,9 @@ function finetune_Q(
         end
 
         if skipped == max_skip
-            jldsave(joinpath(log_path, "V_finetune.jld2"); state=Flux.state(V_model))
+            jldsave(joinpath(log_path, "Q_finetune.jld2"); state=Flux.state(Q_model))
             println("----- Verification Starts -----")
-            con_res, inv_res = verify_value(x_low, x_high, V_h_model, V_V_prime_model;
+            con_res, inv_res = verify_value(x_low, x_high, Q_h_model, Q_Q_prime_model;
                 con_start_values=con_start_values, inv_start_values=inv_start_values)
             println("----- Verification Ends -----")
 
@@ -485,7 +472,7 @@ function finetune_Q(
         end
 
         if i % eval_every == 0
-            fea_rate = mean(V_model(uniform(x_low, x_high, search_size)) .<= 0)
+            fea_rate = mean(Q_model(uniform(x_low, x_high, search_size)) .<= 0)
 
             with_logger(logger) do
                 @info "finetune" predicted_feasible_rate=fea_rate log_step_increment=0
@@ -493,7 +480,8 @@ function finetune_Q(
         end
 
         if i % save_every == 0
-            jldsave(joinpath(log_path, "V_finetune.jld2"); state=Flux.state(V_model))
+            jldsave(joinpath(log_path, "V_finetune.jld2"); state=Flux.state(Q_model))
         end
     end
 end
+
