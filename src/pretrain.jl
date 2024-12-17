@@ -78,10 +78,12 @@ function pretrain_Q(
     snr_coef::Tuple{Float64, Float64} = (1e-3, 5e-4),
     log_dir::Union{String, Nothing} = nothing,
 )
+    println("UPDATED PRETRAIN")
     rng = MersenneTwister(1)
-    trainable_params = Flux.params(Q_model[1][1][2], Q_model[1][1][3], Q_model[2])
-    optim = Flux.setup(AdamW(lr, (0.9, 0.999), weight_decay), trainable_params)
-    # optim = Flux.setup(AdamW(lr, (0.9, 0.999), weight_decay), Q_model)
+    # trainable_params = Flux.params(Q_model[1][1][2], Q_model[1][1][3], Q_model[2])
+    # optim = Flux.setup(AdamW(lr, (0.9, 0.999), weight_decay), trainable_params)
+
+    optim = Flux.setup(AdamW(lr, (0.9, 0.999), weight_decay), Q_model)
     if isnothing(log_dir)
         log_dir = joinpath(@__DIR__, "../log/")
     end
@@ -108,16 +110,20 @@ function pretrain_Q(
                 v_pred, snr_loss = forward_with_snr(m, [x x + noise]; alpha=snr_coef[1], beta=snr_coef[2])
                 return mean((v_pred - v_targ) .^ 2) + snr_loss
             elseif penalty == "APA"
-                noise = Float32(noise_scale) * space_size / 2 .* randn(rng, Float32, size(x))
-                v_pred, apa_loss = forward_with_apa(m, [x x + noise]; alpha=apa_coef)
+                # noise = Float32(noise_scale) * space_size / 2 .* randn(rng, Float32, size(x))
+                # v_pred, apa_loss = forward_with_apa(m, [x x + noise]; alpha=apa_coef)
+
+                # disable apa loss for now
+                apa_loss = 0
+                v_pred = m(state_action)
                 return mean((v_pred - v_targ) .^ 2) + apa_loss
             end
         end
 
         # loss, grad = Flux.withgradient(loss_fn, Q_model)
         loss, grad = Flux.withgradient(loss_fn, Q_model)
-        Flux.update!(optim, trainable_params, grad)
-
+        # Flux.update!(optim, trainable_params, grad)
+        Flux.update!(optim, Q_model, grad[1])
         with_logger(logger) do
             @info "pretrain" loss=loss
             @info "pretrain" constraint_satisfying_rate=mean(c .<= 0) log_step_increment=0
@@ -125,5 +131,5 @@ function pretrain_Q(
         end
     end
 
-    jldsave(joinpath(log_path, "/V_pretrain.jld2"); state=Flux.state(V_model))
+    jldsave(joinpath(log_path, "Q_pretrain.jld2"); state=Flux.state(Q_model))
 end

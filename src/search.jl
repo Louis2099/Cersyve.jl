@@ -222,6 +222,7 @@ function boundary_guided_search_Q(
     x_high::Vector{Float32},
     h_model::Any,
     Q_model::Any,
+    Q_interval::Any,
     f_pi_model::Any;
     pgd_step::Int64 = 10,
     pgd_eps::Float64 = 0.1,
@@ -241,10 +242,10 @@ function boundary_guided_search_Q(
     m = zeros(Float32, size(x))
 
     for _ in 1:pgd_step
-        h = h_model(x_pgd[:task.x_dim, :])[1, :]
+        h = h_model(x_pgd[1:task.x_dim, :])[1, :]
         v = Q_model(x_pgd)[1, :]
-        # v_prime = Q_model(f_pi_model(x_pgd[:task.x_dim,:]))[1, :]
-        v_prime = find_min_at_vertices(Q_model, x_pgd, task.u_low, task.u_high, task.x_dim)
+        v_prime = Q_interval(f_pi_model(x_pgd[1:task.x_dim,:]))[1, :]
+        # v_prime = find_min_at_vertices(Q_model, x_pgd, task.u_low, task.u_high, task.x_dim)
         
         con = (v .<= tol) .& (h .> -tol)
         inv = (v .<= tol) .& (v_prime .> -tol)
@@ -254,8 +255,8 @@ function boundary_guided_search_Q(
         pgd[pgd] = pgd_pgd
         x_pgd = x[:, pgd]
 
-        con_g = Flux.gradient(x -> sum(h_model(x[:task.x_dim, :])), x_pgd[:, 1:div(size(x_pgd, 2), 2)])[1]
-        inv_g = Flux.gradient(x -> sum(Q_model(f_pi_model(x[:task.x_dim, :]))), x_pgd[:, size(con_g, 2) + 1:end])[1]
+        con_g = Flux.gradient(x -> sum(h_model(x[1:task.x_dim, :])), x_pgd[:, 1:div(size(x_pgd, 2), 2)])[1]
+        inv_g = Flux.gradient(x -> sum(Q_interval(f_pi_model(x[1:task.x_dim, :]))), x_pgd[:, size(con_g, 2) + 1:end])[1]
         g = hcat(con_g, inv_g) + Float32(pgd_beta) * m[:, pgd]
         g ./= sqrt.(sum(g .^ 2, dims=1))
 
@@ -313,15 +314,16 @@ end
 
 function filter_counterexample_Q(
     task::Any,
-    x::Matrix{Float32},
+    xu::Matrix{Float32},
     h_model::Any,
-    V_model::Any,
+    Q_model::Any,
+    interval_Q_model::Any,
     f_pi_model::Any;
     tol::Float64 = 1e-4,
 )::Tuple{BitVector, BitVector}
-    h = h_model(x)[1, :]
-    v = V_model(x)[1, :]
-    v_prime = find_min_at_vertices(Q_model, x_pgd, task.u_low, task.u_high, task.x_dim)[1, :]
+    h = h_model(xu[1:task.x_dim,:])[1, :]
+    v = Q_model(xu)[1, :]
+    v_prime = interval_Q_model(f_pi_model(xu[1:task.x_dim,:]))[1, :]
     con = (v .<= tol) .& (h .> -tol)
     inv = (v .<= tol) .& (v_prime .> -tol) .& (.~con)
     return con, inv

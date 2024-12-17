@@ -308,9 +308,9 @@ function finetune_Q(
     buffer = Buffer(capacity, length(x_low))
 
     ######################################################
-    trainable_params = Flux.params(Q_model[1][1][2], Q_model[1][1][3], Q_model[2])
-    opt_state = Flux.setup(Adam(lr), trainable_params)
-    #opt_state = Flux.setup(Adam(lr), Q_model[2])
+    # trainable_params = Flux.params(Q_model[1][1][2], Q_model[1][1][3], Q_model[2])
+    # opt_state = Flux.setup(Adam(lr), trainable_params)
+    opt_state = Flux.setup(Adam(lr), Q_model)
     ######################################################
     if isnothing(log_dir)
         log_dir = joinpath(@__DIR__, "../log/")
@@ -318,8 +318,8 @@ function finetune_Q(
     log_path = joinpath(log_dir, "finetune_" * Dates.format(Dates.now(), "yyyymmdd_HHMMSS"))
     logger = TBLogger(log_path)
 
-    Q_h_model = create_Q_constraint_model(Q_model, h_model)
-    Q_Q_prime_model = create_Q_Q_prime(Q_model, task)
+    Q_h_model = create_Q_constraint_model(Q_model, h_model, task)
+    Q_Q_prime_model, affine_Q_interval = create_Q_Q_prime(Q_model, f_pi_model, task)
 
     for i in ProgressBar(1:max_iter)
         if (length(buffer.stored) < search_stop)
@@ -330,12 +330,12 @@ function finetune_Q(
             bnd_ratio = clamp(bnd_ratio, min_bnd_ratio, max_bnd_ratio)
 
             if search_method == "BGB"
-                x_pgd = boundary_guided_search_Q(task, x_bnd, x_low, x_high, h_model, Q_model, f_pi_model;
+                x_pgd = boundary_guided_search_Q(task, x_bnd, x_low, x_high, h_model, Q_model, affine_Q_interval, f_pi_model;
                     pgd_step=pgd_step, pgd_eps=pgd_eps, backtrack_step=backtrack_step,
                     length_discount=length_discount, bound_guide=true, direct_discount=direct_discount,
                     tol=tol)
             end
-            con, inv = filter_counterexample_Q(task, x_pgd, h_model, Q_model, f_pi_model; tol=tol)
+            con, inv = filter_counterexample_Q(task, x_pgd, h_model, Q_model, affine_Q_interval, f_pi_model; tol=tol)
             ce = con .| inv
             push!(buffer, x_pgd[:, ce])
 
@@ -352,7 +352,7 @@ function finetune_Q(
 
             n = min(sample_size, length(buffer.stored))
             x, c = pop!(buffer, n)
-            con, inv = filter_counterexample_Q(task, x, h_model, Q_model, f_pi_model; tol=tol)
+            con, inv = filter_counterexample_Q(task, x, h_model, Q_model, affine_Q_interval, f_pi_model; tol=tol)
             x_con, x_inv = x[:, con], x[:, inv]
             c[con .| inv] .= 0
             c[.~con .& .~inv] .+= 1
@@ -366,9 +366,9 @@ function finetune_Q(
                 if reg_method == "ESR"
                     # entering state regularization
                     x_reg = uniform(x_low, x_high, search_size)
-                    h_reg = h_model(x_reg[:task.x_dim, :])[1, :]
+                    h_reg = h_model(x_reg[1:task.x_dim, :])[1, :]
                     v_reg = Q_model(x_reg)[1, :]
-                    v_reg_prime = Q_model(f_pi_model(x_reg[:task.x_dim, :]))[1, :]
+                    v_reg_prime = Q_model(f_pi_model(x_reg[1:task.x_dim, :]))[1, :]
                     entering = (h_reg .<= -eps_h) .& (v_reg .> 0) .& (
                         v_reg .<= eps_v) .& (v_reg_prime .<= -eps_v)
                     x_reg = x_reg[:, entering]
@@ -390,7 +390,7 @@ function finetune_Q(
                 end
 
                 if n_inv > 0
-                    inv_loss = sum(-Q_model(x_inv) + Q_model(f_pi_model(x_inv[:task.x_dim, :])))
+                    inv_loss = sum(-Q_model(x_inv) + Q_model(f_pi_model(x_inv[1:task.x_dim, :])))
                 else
                     inv_loss = 0
                 end
@@ -409,7 +409,7 @@ function finetune_Q(
             
             # regular
             loss, grad = Flux.withgradient(value_loss_fn, Q_model)
-            Flux.update!(opt_state, trainable_params, grad[1])
+            Flux.update!(opt_state, Q_model, grad)
             
             ######################################################
             # finetune rcppol
@@ -480,7 +480,7 @@ function finetune_Q(
         end
 
         if i % save_every == 0
-            jldsave(joinpath(log_path, "V_finetune.jld2"); state=Flux.state(Q_model))
+            jldsave(joinpath(log_path, "Q_finetune.jld2"); state=Flux.state(Q_model))
         end
     end
 end
