@@ -9,41 +9,6 @@ using ModelVerification
 
 
 
-function create_parallel_affine_Q(x_dim, u_dim)
-    # Assume the input has 13 elements: x (0–7), u (8–13)
-    # x_w = create_filter_matrix(1, x_dim, x_dim+u_dim)
-    # u_w = create_filter_matrix(x_dim+1, x_dim+u_dim, x_dim+u_dim)
-    # [input_dim, batch_size]
-    function filter_x(input)
-        return input[1:x_dim, :]
-    end
-    
-    function filter_u(input)
-        return input[x_dim+1:end, :]
-    end
-
-    #Branch1
-    b1 = Chain(
-        filter_x,  
-        Dense(x_dim, 32, relu),  
-        Dense(32, 32, relu)  
-    )
-
-    # Define the final output layer (scalar output)
-    final_layer = Chain(Dense(32 + u_dim, 1))  # Concatenation of x (32) and u (6)
-
-    # Complete model
-    model = Chain(
-        Parallel(
-            vcat, 
-            b1,
-            filter_u
-        ),
-        final_layer                       # Compute scalar output
-    )
-    return model
-end
-
 task = Unicycle
 value_hidden_sizes = [32, 32]
 dynamics_hidden_sizes = [32, 32]
@@ -68,10 +33,16 @@ Flux.loadmodel!(h_model, JLD2.load(joinpath(model_dir, "h.jld2"), "state"))
 x_a_low =  [task.x_low; task.u_low]
 x_a_high = [task.x_high; task.u_high]
 
-
+fun_affine_Q = create_func_parallel_affine_Q(task.x_dim, task.u_dim)
 affine_Q = create_parallel_affine_Q(task.x_dim, task.u_dim)
-Flux.loadmodel!(affine_Q, JLD2.load(joinpath(model_dir, "Q_pretrain.jld2"), "state"))
+Flux.loadmodel!(fun_affine_Q, JLD2.load(joinpath(model_dir, "Q_pretrain.jld2"), "state"))
 
+affine_Q[1].layers[1].layers[2].weight .= fun_affine_Q[1].layers[1].layers[2].weight
+affine_Q[1].layers[1].layers[2].bias .= fun_affine_Q[1].layers[1].layers[2].bias
+affine_Q[1].layers[1].layers[3].weight .= fun_affine_Q[1].layers[1].layers[3].weight
+affine_Q[1].layers[1].layers[3].bias .= fun_affine_Q[1].layers[1].layers[3].bias
+affine_Q[2].layers[1].weight .= fun_affine_Q[2].layers[1].weight
+affine_Q[2].layers[1].bias .= fun_affine_Q[2].layers[1].bias
 
 finetune_Q(
     task, 

@@ -36,6 +36,8 @@ export pretrain_Q
 export finetune_value
 export verify_value
 export finetune_Q
+export create_parallel_affine_Q
+export create_func_parallel_affine_Q
 
 include("double_integrator.jl")
 include("pendulum.jl")

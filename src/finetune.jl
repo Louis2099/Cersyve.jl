@@ -409,7 +409,8 @@ function finetune_Q(
             
             # regular
             loss, grad = Flux.withgradient(value_loss_fn, Q_model)
-            Flux.update!(opt_state, Q_model, grad)
+            Flux.update!(opt_state, Q_model, grad[1])
+            
             
             ######################################################
             # finetune rcppol
@@ -423,6 +424,21 @@ function finetune_Q(
             # Flux.update!(opt_state, Q_model[2], value_grad)
             ######################################################
 
+            # finetune affine_Q
+            # loss, grad = Flux.withgradient(value_loss_fn, Q_model)
+            # println(grad)
+            # L1B1L2_grad = grad[1][1][1][2]
+            # L1B1L3_grad = grad[1][1][1][3]
+            # L2_grad = grad[1][2]
+            # if isnothing(L1B1L2_grad)
+            #     println(L1B1L2_grad)
+            #     continue
+            # end
+            # Flux.update!(opt_state, Q_model[1][1][2], L1B1L2_grad)
+            # Flux.update!(opt_state, Q_model[1][1][3], L1B1L3_grad)
+            # Flux.update!(opt_state, Q_model[2], L2_grad)
+            ######################################################
+            
             with_logger(logger) do
                 @info "finetune" sample_size=n log_step_increment=0
                 @info "finetune" value_loss=loss log_step_increment=0
