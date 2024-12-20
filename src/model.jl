@@ -84,35 +84,6 @@ function create_expand_matrix(start_idx, end_idx, expand_dim)
     return W
 end
 
-struct ExpandXToXU
-    x_dim::Int
-    u_dim::Int
-end
-
-# Define the forward pass for the layer
-function (layer::ExpandXToXU)(x)
-    # `x` is the input vector of size `x_dim`
-    u = rand(layer.u_dim)  # Generate random `u` part
-    return vcat(x, u)      # Concatenate `x` and `u`
-end
-
-# Example usage
-function create_expand_xu_layer(x_dim, u_dim)
-    return ExpandXToXU(x_dim, u_dim)
-end
-
-# Custom Dense Layer for Interval Arithmetic
-struct DenseInterval
-    W::AbstractMatrix
-    b::AbstractVector
-    x_dim::Int
-    u_low::AbstractVector
-    u_high::AbstractVector
-end
-
-
-
-
 function DenseInterval(W, b, x_dim, u_low, u_high)
     DenseInterval(W, b, x_dim, u_low, u_high)
 end
