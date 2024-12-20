@@ -33,16 +33,9 @@ Flux.loadmodel!(h_model, JLD2.load(joinpath(model_dir, "h.jld2"), "state"))
 x_a_low =  [task.x_low; task.u_low]
 x_a_high = [task.x_high; task.u_high]
 
-fun_affine_Q = create_func_parallel_affine_Q(task.x_dim, task.u_dim)
+# fun_affine_Q = create_func_parallel_affine_Q(task.x_dim, task.u_dim)
 affine_Q = create_parallel_affine_Q(task.x_dim, task.u_dim)
-Flux.loadmodel!(fun_affine_Q, JLD2.load(joinpath(model_dir, "Q_pretrain.jld2"), "state"))
-
-affine_Q[1].layers[1].layers[2].weight .= fun_affine_Q[1].layers[1].layers[2].weight
-affine_Q[1].layers[1].layers[2].bias .= fun_affine_Q[1].layers[1].layers[2].bias
-affine_Q[1].layers[1].layers[3].weight .= fun_affine_Q[1].layers[1].layers[3].weight
-affine_Q[1].layers[1].layers[3].bias .= fun_affine_Q[1].layers[1].layers[3].bias
-affine_Q[2].layers[1].weight .= fun_affine_Q[2].layers[1].weight
-affine_Q[2].layers[1].bias .= fun_affine_Q[2].layers[1].bias
+Flux.loadmodel!(affine_Q, JLD2.load(joinpath(model_dir, "Q_pretrain.jld2"), "state"))
 
 finetune_Q(
     task, 

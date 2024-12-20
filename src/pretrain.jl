@@ -1,3 +1,4 @@
+using Optimisers
 function pretrain_value(
     V_model::Chain,
     f_pi_model::Any,
@@ -57,6 +58,17 @@ function pretrain_value(
     jldsave(joinpath(log_path, "/V_pretrain.jld2"); state=Flux.state(V_model))
 end
 
+function print_keys(nt, prefix="")
+    for key in fieldnames(typeof(nt))
+        new_prefix = prefix * string(key) * "."
+        println(new_prefix)
+        value = getfield(nt, key)
+        if isa(value, NamedTuple)
+            print_keys(value, new_prefix)
+        end
+    end
+end
+
 function pretrain_Q(
     Q_model::Chain,
     f_pi_model::Any,
@@ -83,7 +95,15 @@ function pretrain_Q(
     # trainable_params = Flux.params(Q_model[1][1][2], Q_model[1][1][3], Q_model[2])
     # optim = Flux.setup(AdamW(lr, (0.9, 0.999), weight_decay), trainable_params)
 
-    optim = Flux.setup(AdamW(lr, (0.9, 0.999), weight_decay), Q_model)
+    # optim = Flux.setup(AdamW(lr, (0.9, 0.999), weight_decay), Q_model)
+    optim = Optimisers.setup(Optimisers.AdamW(lr, (0.9, 0.999), weight_decay), Q_model)
+    println(typeof(optim))
+    Optimisers.freeze!(optim.layers[1].layers[1].layers[1])
+    Optimisers.freeze!(optim.layers[1].layers[2].layers[2])
+    
+    println(optim.layers[1].layers[1].layers[1].weight)
+
+
     if isnothing(log_dir)
         log_dir = joinpath(@__DIR__, "../log/")
     end
@@ -120,10 +140,15 @@ function pretrain_Q(
             end
         end
 
-        # loss, grad = Flux.withgradient(loss_fn, Q_model)
+        
+        # loss, grad = Flux.withgradient(loss_fn, Q_model[1].layers[1])
+        # Flux.update!(optim, Q_model, grad[1])
+        
         loss, grad = Flux.withgradient(loss_fn, Q_model)
-        # Flux.update!(optim, trainable_params, grad)
-        Flux.update!(optim, Q_model, grad[1])
+        
+        Optimisers.update!(optim, Q_model, grad[1])
+
+        # Flux.update!(optim, Q_model, grad[1])
         with_logger(logger) do
             @info "pretrain" loss=loss
             @info "pretrain" constraint_satisfying_rate=mean(c .<= 0) log_step_increment=0

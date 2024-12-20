@@ -84,29 +84,40 @@ function create_expand_matrix(start_idx, end_idx, expand_dim)
     return W
 end
 
-function DenseInterval(W, b, x_dim, u_low, u_high)
-    DenseInterval(W, b, x_dim, u_low, u_high)
-end
 
-# Forward pass for interval arithmetic
-function (layer::DenseInterval)(xu::AbstractMatrix)
-    # Compute lower and upper bounds for each neuron
-    # xu are embeddings of x(32) and u
-    x_dim = 32
-    x = xu[1:x_dim, :]
 
-    W_x = layer.W[:, 1:x_dim]
-    z = W_x * x .+ layer.b
-    # println(z)
+# Custom Dense Layer for Interval Arithmetic
+# struct DenseInterval
+#     W::AbstractMatrix
+#     b::AbstractVector
+#     x_dim::Int
+#     u_low::AbstractVector
+#     u_high::AbstractVector
+# end
 
-    W_u = layer.W[:, x_dim+1:end]
-    W_up = max.(W_u, 0.0)
-    W_un = min.(W_u, 0.0)
-    # println(W_u)
+# function DenseInterval(W, b, x_dim, u_low, u_high)
+#     DenseInterval(W, b, x_dim, u_low, u_high)
+# end
 
-    l = W_up * layer.u_low .+ W_un * layer.u_high .+ z
-    return l
-end
+# # Forward pass for interval arithmetic
+# function (layer::DenseInterval)(xu::AbstractMatrix)
+#     # Compute lower and upper bounds for each neuron
+#     # xu are embeddings of x(32) and u
+#     x_dim = 32
+#     x = xu[1:x_dim, :]
+
+#     W_x = layer.W[:, 1:x_dim]
+#     z = W_x * x .+ layer.b
+#     # println(z)
+
+#     W_u = layer.W[:, x_dim+1:end]
+#     W_up = max.(W_u, 0.0)
+#     W_un = min.(W_u, 0.0)
+#     # println(W_u)
+
+#     l = W_up * layer.u_low .+ W_un * layer.u_high .+ z
+#     return l
+# end
 
 # Create the model
 function create_parallel_affine_Q_interval(x_dim, u_dim, u_low, u_high)
@@ -139,65 +150,48 @@ function create_parallel_affine_Q_interval(x_dim, u_dim, u_low, u_high)
     b_expand_u = zeros(b1_embedding_dim + u_dim)
     expand_u = Dense(W_expand_u, b_expand_u)
 
+
+    W_replace_u = zeros(u_dim, u_dim)
+    b_replace_low = u_low
+    b_replace_high = u_high
+    replace_u_low = Dense(W_replace_u, b_replace_low)
+    replace_u_high = Dense(W_replace_u, b_replace_high)
+
     # Branch 1
     b1 = Chain(
         filter_x,
         Dense(x_dim, 32, relu),
         Dense(32, 32, relu),
-        expand_emb
+        Dense(32, 1, relu)
+        # expand_emb
     )
-    b2 = Chain(
+    b_low = Chain(
         filter_u,
-        expand_u
+        replace_u_low,
+        Dense(u_dim, 1)
+        # expand_u
+    )
+    b_high = Chain(
+        filter_u,
+        replace_u_high,
+        Dense(u_dim, 1)
     )
     # Define the interval arithmetic layer for the final output
-    final_layer_interval = DenseInterval(randn(1, 32 + u_dim), randn(1), 32, u_low, u_high)
+    # final_layer_interval = DenseInterval(randn(1, 32 + u_dim), randn(1), 32, u_low, u_high)
 
     # Complete model
     model = Chain(
         Parallel(
             +, 
             b1,
-            b2
+            b_low,
+            b_high
         ),
-        final_layer_interval  # Perform interval arithmetic here
+        # final_layer_interval  # Perform interval arithmetic here
     )
     return model
 end
 
-function create_func_parallel_affine_Q_interval(x_dim, u_dim, u_low, u_high)
-    function filter_x(input)
-        return input[1:x_dim, :]
-    end
-    
-    function filter_u(input)
-        if size(input, 1) == x_dim
-            return input
-        end
-        return input[x_dim+1:end, :]
-    end
-
-    # Branch 1
-    b1 = Chain(
-        filter_x,
-        Dense(x_dim, 32, relu),
-        Dense(32, 32, relu)
-    )
-
-    # Define the interval arithmetic layer for the final output
-    final_layer_interval = DenseInterval(randn(1, 32 + u_dim), randn(1), 32, u_low, u_high)
-
-    # Complete model
-    model = Chain(
-        Parallel(
-            vcat, 
-            b1,
-            filter_u
-        ),
-        final_layer_interval  # Perform interval arithmetic here
-    )
-    return model
-end
 
 function create_Q_constraint_model(Q_model, h_model, task)
     # function filter_x(input)
@@ -244,13 +238,15 @@ function create_parallel_affine_Q(x_dim, u_dim)
         filter_x,
         Dense(x_dim, 32, relu),
         Dense(32, 32, relu),
-        expand_emb
+        # expand_emb
+        Dense(32, 1, relu)
     )
     b2 = Chain(
         filter_u,
-        expand_u
+        # expand_u
+        Dense(u_dim, 1)
     )
-    final_layer = Chain(Dense(32 + u_dim, 1))
+    # final_layer = Chain(Dense(32 + u_dim, 1))
 
     # Complete model
     model = Chain(
@@ -259,43 +255,10 @@ function create_parallel_affine_Q(x_dim, u_dim)
             b1,
             b2
         ),
-        final_layer  
+        # final_layer  
     )
     return model
 end
-
-function create_func_parallel_affine_Q(x_dim, u_dim)
-    function filter_x(input)
-        return input[1:x_dim, :]
-    end
-    
-    function filter_u(input)
-        return input[x_dim+1:end, :]
-    end
-    
-
-    #Branch1
-    b1 = Chain(
-        filter_x,  
-        Dense(x_dim, 32, relu),  
-        Dense(32, 32, relu)  
-    )
-
-    # Define the final output layer (scalar output)
-    final_layer = Chain(Dense(32 + u_dim, 1))  # Concatenation of x (32) and u (6)
-
-    # Complete model
-    model = Chain(
-        Parallel(
-            vcat, 
-            b1,
-            filter_u
-        ),
-        final_layer                       # Compute scalar output
-    )
-    return model
-end
-
 
 
 function create_Q_Q_prime(affine_Q, f_pi_model, task)
@@ -306,28 +269,37 @@ function create_Q_Q_prime(affine_Q, f_pi_model, task)
     
     # creating Q_prime
     affine_Q_interval = create_parallel_affine_Q_interval(task.x_dim, task.u_dim, task.u_low, task.u_high)
-    func_affine_Q_interval = create_func_parallel_affine_Q_interval(task.x_dim, task.u_dim, task.u_low, task.u_high)
     # println(affine_Q_interval)
     # Copy weights and biases from affine_Q to affine_Q_interval
     affine_Q_interval[1].layers[1].layers[2].weight .= affine_Q[1].layers[1].layers[2].weight
-    func_affine_Q_interval[1].layers[1].layers[2].weight .= affine_Q[1].layers[1].layers[2].weight
-
     affine_Q_interval[1].layers[1].layers[2].bias .= affine_Q[1].layers[1].layers[2].bias
-    func_affine_Q_interval[1].layers[1].layers[2].bias .= affine_Q[1].layers[1].layers[2].bias
-    
     affine_Q_interval[1].layers[1].layers[3].weight .= affine_Q[1].layers[1].layers[3].weight
-    func_affine_Q_interval[1].layers[1].layers[3].weight .= affine_Q[1].layers[1].layers[3].weight
-    
     affine_Q_interval[1].layers[1].layers[3].bias .= affine_Q[1].layers[1].layers[3].bias
-    func_affine_Q_interval[1].layers[1].layers[3].bias .= affine_Q[1].layers[1].layers[3].bias
+    affine_Q_interval[1].layers[1].layers[4].weight .= affine_Q[1].layers[1].layers[4].weight
+    affine_Q_interval[1].layers[1].layers[4].bias .= affine_Q[1].layers[1].layers[4].bias
+    
 
     println("PASS 0")
     # Map the final layer to DenseInterval
-    affine_Q_interval[2].W .= affine_Q[2].layers[1].weight
-    func_affine_Q_interval[2].W .= affine_Q[2].layers[1].weight
+    # affine_Q_interval[2].W .= affine_Q[2].layers[1].weight
+    # func_affine_Q_interval[2].W .= affine_Q[2].layers[1].weight
 
-    affine_Q_interval[2].b .= affine_Q[2].layers[1].bias
-    func_affine_Q_interval[2].b .= affine_Q[2].layers[1].bias
+    # affine_Q_interval[2].b .= affine_Q[2].layers[1].bias
+    # func_affine_Q_interval[2].b .= affine_Q[2].layers[1].bias
+
+    # b_low
+    # println(affine_Q[1].layers[2].layers[2].weight)
+    # println(affine_Q[1].layers[2].layers[2].bias)
+    # println(max.(affine_Q[1].layers[2].layers[2].weight, 0.0))
+    # println(min.(affine_Q[1].layers[2].layers[2].weight, 0.0))
+    affine_Q_interval[1].layers[2].layers[3].weight .= max.(affine_Q[1].layers[2].layers[2].weight, 0.0)
+    affine_Q_interval[1].layers[2].layers[3].bias .= affine_Q[1].layers[2].layers[2].bias
+    
+    # b_high
+    affine_Q_interval[1].layers[3].layers[3].weight .= min.(affine_Q[1].layers[2].layers[2].weight, 0.0)
+    affine_Q_interval[1].layers[3].layers[3].bias .= 0.0
+
+
 
     println("PASS 1")
     # function filter_x(input)
@@ -345,5 +317,5 @@ function create_Q_Q_prime(affine_Q, f_pi_model, task)
     return Chain(Parallel(+,
         Chain(affine_Q, Dense(Float32[1; 0;;])),
         Chain(filter_x, f_pi_model, expand_layer, affine_Q_interval, Dense(Float32[0; 1;;])),
-    )), func_affine_Q_interval
+    )), affine_Q_interval
 end

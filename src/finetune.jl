@@ -1,3 +1,4 @@
+using Optimisers
 function finetune_value(
     V_model::Any,
     f_pi_model::Any,
@@ -310,7 +311,11 @@ function finetune_Q(
     ######################################################
     # trainable_params = Flux.params(Q_model[1][1][2], Q_model[1][1][3], Q_model[2])
     # opt_state = Flux.setup(Adam(lr), trainable_params)
-    opt_state = Flux.setup(Adam(lr), Q_model)
+    # opt_state = Flux.setup(Adam(lr), Q_model)
+    opt_state = Optimisers.setup(Optimisers.Adam(lr), Q_model)
+    # println(typeof(opt_state))
+    Optimisers.freeze!(opt_state.layers[1].layers[1].layers[1])
+    Optimisers.freeze!(opt_state.layers[1].layers[2].layers[2])
     ######################################################
     if isnothing(log_dir)
         log_dir = joinpath(@__DIR__, "../log/")
@@ -368,7 +373,8 @@ function finetune_Q(
                     x_reg = uniform(x_low, x_high, search_size)
                     h_reg = h_model(x_reg[1:task.x_dim, :])[1, :]
                     v_reg = Q_model(x_reg)[1, :]
-                    v_reg_prime = affine_Q_interval(f_pi_model(x_reg[1:task.x_dim, :]))[1, :]
+                    
+                    v_reg_prime = affine_Q_interval(vcat(f_pi_model(x_reg[1:task.x_dim,:]), zeros(task.u_dim, size(x_reg, 2))))[1, :]
                     entering = (h_reg .<= -eps_h) .& (v_reg .> 0) .& (
                         v_reg .<= eps_v) .& (v_reg_prime .<= -eps_v)
                     x_reg = x_reg[:, entering]
@@ -390,7 +396,7 @@ function finetune_Q(
                 end
 
                 if n_inv > 0
-                    inv_loss = sum(-Q_model(x_inv) + affine_Q_interval(f_pi_model(x_inv[1:task.x_dim, :])))
+                    inv_loss = sum(-Q_model(x_inv) + affine_Q_interval(vcat(f_pi_model(x_inv[1:task.x_dim,:]), zeros(task.u_dim, size(x_inv, 2)))))
                 else
                     inv_loss = 0
                 end
@@ -409,7 +415,7 @@ function finetune_Q(
             
             # regular
             loss, grad = Flux.withgradient(value_loss_fn, Q_model)
-            Flux.update!(opt_state, Q_model, grad[1])
+            Optimisers.update!(opt_state, Q_model, grad[1])
             
             
             ######################################################
@@ -422,21 +428,6 @@ function finetune_Q(
             # end
             # value_grad = value_grad[1][2]
             # Flux.update!(opt_state, Q_model[2], value_grad)
-            ######################################################
-
-            # finetune affine_Q
-            # loss, grad = Flux.withgradient(value_loss_fn, Q_model)
-            # println(grad)
-            # L1B1L2_grad = grad[1][1][1][2]
-            # L1B1L3_grad = grad[1][1][1][3]
-            # L2_grad = grad[1][2]
-            # if isnothing(L1B1L2_grad)
-            #     println(L1B1L2_grad)
-            #     continue
-            # end
-            # Flux.update!(opt_state, Q_model[1][1][2], L1B1L2_grad)
-            # Flux.update!(opt_state, Q_model[1][1][3], L1B1L3_grad)
-            # Flux.update!(opt_state, Q_model[2], L2_grad)
             ######################################################
             
             with_logger(logger) do

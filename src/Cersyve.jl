@@ -16,6 +16,7 @@ using TensorBoardLogger
 using Zygote
 using PyCall
 using HDF5
+using Optimisers
 
 export DoubleIntegrator
 export Pendulum
@@ -37,7 +38,8 @@ export finetune_value
 export verify_value
 export finetune_Q
 export create_parallel_affine_Q
-export create_func_parallel_affine_Q
+export create_Q_Q_prime
+# export create_func_parallel_affine_Q
 
 include("double_integrator.jl")
 include("pendulum.jl")
