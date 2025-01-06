@@ -279,7 +279,7 @@ function create_Q_Q_prime(affine_Q, f_pi_model, task)
     affine_Q_interval[1].layers[1].layers[4].bias .= affine_Q[1].layers[1].layers[4].bias
     
 
-    println("PASS 0")
+    # println("PASS 0")
     # Map the final layer to DenseInterval
     # affine_Q_interval[2].W .= affine_Q[2].layers[1].weight
     # func_affine_Q_interval[2].W .= affine_Q[2].layers[1].weight
@@ -301,7 +301,7 @@ function create_Q_Q_prime(affine_Q, f_pi_model, task)
 
 
 
-    println("PASS 1")
+    # println("PASS 1")
     # function filter_x(input)
     #     return input[1:task.x_dim, :]
     # end
@@ -313,7 +313,7 @@ function create_Q_Q_prime(affine_Q, f_pi_model, task)
     expand_W = create_expand_matrix(1, task.x_dim, task.x_dim + task.u_dim)
     expand_b = zeros(task.x_dim + task.u_dim)
     expand_layer = Dense(expand_W, expand_b)
-    println("PASS 2")
+    # println("PASS 2")
     return Chain(Parallel(+,
         Chain(affine_Q, Dense(Float32[1; 0;;])),
         Chain(filter_x, f_pi_model, expand_layer, affine_Q_interval, Dense(Float32[0; 1;;])),

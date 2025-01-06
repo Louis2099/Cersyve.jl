@@ -300,7 +300,7 @@ function finetune_Q(
         return loss
     end
     
-
+    println("UPDATED FINETUNE Q")
     skipped = 0
     verified = 0
     con_start_values = nothing
@@ -416,7 +416,7 @@ function finetune_Q(
             # regular
             loss, grad = Flux.withgradient(value_loss_fn, Q_model)
             Optimisers.update!(opt_state, Q_model, grad[1])
-            
+            Q_Q_prime_model, affine_Q_interval = create_Q_Q_prime(Q_model, f_pi_model, task)
             
             ######################################################
             # finetune rcppol
