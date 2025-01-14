@@ -246,7 +246,7 @@ function finetune_value(
         end
 
         if i % save_every == 0
-            jldsave(joinpath(log_path, "V_finetune.jld2"); state=Flux.state(V_model))
+            jldsave(joinpath(log_path, "V_finetune$(i).jld2"); state=Flux.state(V_model))
         end
     end
 end
@@ -300,7 +300,7 @@ function finetune_Q(
         return loss
     end
     
-    println("UPDATED FINETUNE Q")
+    println("UPDATED FINETUNE Q 1")
     skipped = 0
     verified = 0
     con_start_values = nothing
@@ -315,7 +315,7 @@ function finetune_Q(
     opt_state = Optimisers.setup(Optimisers.Adam(lr), Q_model)
     # println(typeof(opt_state))
     Optimisers.freeze!(opt_state.layers[1].layers[1].layers[1])
-    Optimisers.freeze!(opt_state.layers[1].layers[2].layers[2])
+    Optimisers.freeze!(opt_state.layers[1].layers[2].layers[1])
     ######################################################
     if isnothing(log_dir)
         log_dir = joinpath(@__DIR__, "../log/")
@@ -487,7 +487,7 @@ function finetune_Q(
         end
 
         if i % save_every == 0
-            jldsave(joinpath(log_path, "Q_finetune.jld2"); state=Flux.state(Q_model))
+            jldsave(joinpath(log_path, "Q_finetune$(i).jld2"); state=Flux.state(Q_model))
         end
     end
 end

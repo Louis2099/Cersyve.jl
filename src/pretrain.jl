@@ -99,9 +99,9 @@ function pretrain_Q(
     optim = Optimisers.setup(Optimisers.AdamW(lr, (0.9, 0.999), weight_decay), Q_model)
     println(typeof(optim))
     Optimisers.freeze!(optim.layers[1].layers[1].layers[1])
-    Optimisers.freeze!(optim.layers[1].layers[2].layers[2])
+    Optimisers.freeze!(optim.layers[1].layers[2].layers[1])
     
-    println(optim.layers[1].layers[1].layers[1].weight)
+    # println(optim.layers[1].layers[1].layers[1].weight)
 
 
     if isnothing(log_dir)
