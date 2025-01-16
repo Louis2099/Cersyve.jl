@@ -300,7 +300,7 @@ function finetune_Q(
         return loss
     end
     
-    println("UPDATED FINETUNE Q 1")
+    println("UPDATED FINETUNE Q 2")
     skipped = 0
     verified = 0
     con_start_values = nothing

@@ -39,6 +39,7 @@ export verify_value
 export finetune_Q
 export create_parallel_affine_Q
 export create_Q_Q_prime
+export create_Q_constraint_model
 # export create_func_parallel_affine_Q
 
 include("double_integrator.jl")

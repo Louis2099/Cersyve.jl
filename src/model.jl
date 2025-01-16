@@ -86,38 +86,6 @@ end
 
 
 
-# Custom Dense Layer for Interval Arithmetic
-# struct DenseInterval
-#     W::AbstractMatrix
-#     b::AbstractVector
-#     x_dim::Int
-#     u_low::AbstractVector
-#     u_high::AbstractVector
-# end
-
-# function DenseInterval(W, b, x_dim, u_low, u_high)
-#     DenseInterval(W, b, x_dim, u_low, u_high)
-# end
-
-# # Forward pass for interval arithmetic
-# function (layer::DenseInterval)(xu::AbstractMatrix)
-#     # Compute lower and upper bounds for each neuron
-#     # xu are embeddings of x(32) and u
-#     x_dim = 32
-#     x = xu[1:x_dim, :]
-
-#     W_x = layer.W[:, 1:x_dim]
-#     z = W_x * x .+ layer.b
-#     # println(z)
-
-#     W_u = layer.W[:, x_dim+1:end]
-#     W_up = max.(W_u, 0.0)
-#     W_un = min.(W_u, 0.0)
-#     # println(W_u)
-
-#     l = W_up * layer.u_low .+ W_un * layer.u_high .+ z
-#     return l
-# end
 
 # Create the model
 function create_parallel_affine_Q_interval(x_dim, u_dim, u_low, u_high)
@@ -162,7 +130,7 @@ function create_parallel_affine_Q_interval(x_dim, u_dim, u_low, u_high)
         filter_x,
         Dense(x_dim, 32, relu),
         Dense(32, 32, relu),
-        Dense(32, 1, relu)
+        Dense(32, 1)
         # expand_emb
     )
     b_low = Chain(
@@ -202,8 +170,8 @@ function create_Q_constraint_model(Q_model, h_model, task)
     b_x = zeros(task.x_dim)
     filter_x = Dense(W_x, b_x)
     return Chain(Parallel(+,
-        Chain(filter_x, h_model, Dense(Float32[1; 0;;])),
-        Chain(Q_model,  Dense(Float32[0; 1;;]))
+        Chain(Q_model,  Dense(Float32[1; 0;;])),
+        Chain(filter_x, h_model, Dense(Float32[0; 1;;]))
     ))
 end
 
@@ -238,8 +206,7 @@ function create_parallel_affine_Q(x_dim, u_dim)
         filter_x,
         Dense(x_dim, 32, relu),
         Dense(32, 32, relu),
-        # expand_emb
-        Dense(32, 1, relu)
+        Dense(32, 1)
     )
     b2 = Chain(
         filter_u,
@@ -315,7 +282,7 @@ function create_Q_Q_prime(affine_Q, f_pi_model, task)
     expand_layer = Dense(expand_W, expand_b)
     # println("PASS 2")
     return Chain(Parallel(+,
-        Chain(affine_Q, Dense(Float32[1; 0;;])),
+        Chain(affine_Q_interval, Dense(Float32[1; 0;;])),
         Chain(filter_x, f_pi_model, expand_layer, affine_Q_interval, Dense(Float32[0; 1;;])),
     )), affine_Q_interval
 end

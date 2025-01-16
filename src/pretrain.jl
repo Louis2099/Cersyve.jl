@@ -90,14 +90,14 @@ function pretrain_Q(
     snr_coef::Tuple{Float64, Float64} = (1e-3, 5e-4),
     log_dir::Union{String, Nothing} = nothing,
 )
-    println("UPDATED PRETRAIN")
+    println("Corrected Model PRETRAIN")
     rng = MersenneTwister(1)
     # trainable_params = Flux.params(Q_model[1][1][2], Q_model[1][1][3], Q_model[2])
     # optim = Flux.setup(AdamW(lr, (0.9, 0.999), weight_decay), trainable_params)
 
     # optim = Flux.setup(AdamW(lr, (0.9, 0.999), weight_decay), Q_model)
     optim = Optimisers.setup(Optimisers.AdamW(lr, (0.9, 0.999), weight_decay), Q_model)
-    println(typeof(optim))
+    # println(typeof(optim))
     Optimisers.freeze!(optim.layers[1].layers[1].layers[1])
     Optimisers.freeze!(optim.layers[1].layers[2].layers[1])
     
@@ -114,18 +114,22 @@ function pretrain_Q(
     for _ in ProgressBar(1:iter_num)
         x = uniform(x_low, x_high, batch_size)
         u = pi_model(x)
+        
         x_prime = f_pi_model(x)
+        u_prime = pi_model(x_prime)
+        
         c = h_model(x)
-        state_action = vcat(x_prime, u)
-        v_targ = (1 - gamma) * c + gamma * max.(c, Q_model(state_action))
-        v_targ = (1 - gamma) * c + gamma * max.(c, Q_model(state_action))
+
+        state_action = vcat(x, u)
+        state_action_prime = vcat(x_prime, u_prime)
+
+        v_targ = (1 - gamma) * c + gamma * max.(c, Q_model(state_action_prime))
+        v_targ = (1 - gamma) * c + gamma * max.(c, Q_model(state_action_prime))
 
         function loss_fn(m)
             if isnothing(penalty)
                 return mean((m(state_action) - v_targ) .^ 2)
-                return mean((m(state_action) - v_targ) .^ 2)
             elseif penalty == "SNR"
-                noise = Float32(noise_scale) * space_size / 2 .* randn(rng, Float32, size(state_action))
                 noise = Float32(noise_scale) * space_size / 2 .* randn(rng, Float32, size(state_action))
                 v_pred, snr_loss = forward_with_snr(m, [x x + noise]; alpha=snr_coef[1], beta=snr_coef[2])
                 return mean((v_pred - v_targ) .^ 2) + snr_loss

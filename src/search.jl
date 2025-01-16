@@ -245,11 +245,12 @@ function boundary_guided_search_Q(
         h = h_model(x_pgd[1:task.x_dim, :])[1, :]
         v = Q_model(x_pgd)[1, :]
         
-        v_prime = Q_interval(vcat(f_pi_model(x_pgd[1:task.x_dim,:]), zeros(task.u_dim, size(x_pgd, 2))))[1, :]
+        min_v = Q_interval(x_pgd)[1, :]
+        min_v_prime = Q_interval(vcat(f_pi_model(x_pgd[1:task.x_dim,:]), zeros(task.u_dim, size(x_pgd, 2))))[1, :]
         # v_prime = find_min_at_vertices(Q_model, x_pgd, task.u_low, task.u_high, task.x_dim)
         
         con = (v .<= tol) .& (h .> -tol)
-        inv = (v .<= tol) .& (v_prime .> -tol)
+        inv = (min_v .<= tol) .& (min_v_prime .> -tol)
         
         pgd_pgd = pgd[pgd]
         pgd_pgd[con .| inv] .= 0
@@ -325,9 +326,9 @@ function filter_counterexample_Q(
 )::Tuple{BitVector, BitVector}
     h = h_model(xu[1:task.x_dim,:])[1, :]
     v = Q_model(xu)[1, :]
-    
-    v_prime = interval_Q_model(vcat(f_pi_model(xu[1:task.x_dim,:]), zeros(task.u_dim, size(xu, 2))))[1, :]
+    min_v = interval_Q_model(xu)[1, :]
+    min_v_prime = interval_Q_model(vcat(f_pi_model(xu[1:task.x_dim,:]), zeros(task.u_dim, size(xu, 2))))[1, :]
     con = (v .<= tol) .& (h .> -tol)
-    inv = (v .<= tol) .& (v_prime .> -tol) .& (.~con)
+    inv = (min_v .<= tol) .& (min_v_prime .> -tol) .& (.~con)
     return con, inv
 end
