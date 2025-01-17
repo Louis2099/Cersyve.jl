@@ -228,7 +228,7 @@ function create_parallel_affine_Q(x_dim, u_dim)
 end
 
 
-function create_Q_Q_prime(affine_Q, f_pi_model, task)
+function create_Q_Q_prime(affine_Q, f_pi_model, f_model, task)
     # trainable parameters
     # println(affine_Q[1][1][2])
     # println(affine_Q[1][1][3])
@@ -283,6 +283,7 @@ function create_Q_Q_prime(affine_Q, f_pi_model, task)
     # println("PASS 2")
     return Chain(Parallel(+,
         Chain(affine_Q_interval, Dense(Float32[1; 0;;])),
-        Chain(filter_x, f_pi_model, expand_layer, affine_Q_interval, Dense(Float32[0; 1;;])),
+        # Chain(filter_x, f_pi_model, expand_layer, affine_Q_interval, Dense(Float32[0; 1;;])),
+        Chain(f_model, expand_layer, affine_Q_interval, Dense(Float32[0; 1;;])),
     )), affine_Q_interval
 end

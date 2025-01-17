@@ -255,6 +255,7 @@ end
 function finetune_Q(
     task::Any,
     Q_model::Any,
+    f_model::Any,
     f_pi_model::Any,
     h_model::Any,
     x_low::Vector{Float32},
@@ -324,7 +325,7 @@ function finetune_Q(
     logger = TBLogger(log_path)
 
     Q_h_model = create_Q_constraint_model(Q_model, h_model, task)
-    Q_Q_prime_model, affine_Q_interval = create_Q_Q_prime(Q_model, f_pi_model, task)
+    Q_Q_prime_model, affine_Q_interval = create_Q_Q_prime(Q_model, f_pi_model, f_model, task)
 
     for i in ProgressBar(1:max_iter)
         if (length(buffer.stored) < search_stop)
@@ -416,7 +417,7 @@ function finetune_Q(
             # regular
             loss, grad = Flux.withgradient(value_loss_fn, Q_model)
             Optimisers.update!(opt_state, Q_model, grad[1])
-            Q_Q_prime_model, affine_Q_interval = create_Q_Q_prime(Q_model, f_pi_model, task)
+            Q_Q_prime_model, affine_Q_interval = create_Q_Q_prime(Q_model, f_model, f_pi_model, task)
             
             ######################################################
             # finetune rcppol

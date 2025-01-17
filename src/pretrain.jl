@@ -76,6 +76,8 @@ function pretrain_Q(
     h_model::Any,
     x_low::Vector{Float32},
     x_high::Vector{Float32};
+    u_low::Vector{Float32},
+    u_high::Vector{Float32},
     # x_a_low::Vector{Float32},
     # x_a_high::Vector{Float32},
     gamma::Float64 = 0.9,
@@ -113,7 +115,7 @@ function pretrain_Q(
 
     for _ in ProgressBar(1:iter_num)
         x = uniform(x_low, x_high, batch_size)
-        u = pi_model(x)
+        u = uniform(u_low, u_high, batch_size)
         
         x_prime = f_pi_model(x)
         u_prime = pi_model(x_prime)
@@ -123,7 +125,6 @@ function pretrain_Q(
         state_action = vcat(x, u)
         state_action_prime = vcat(x_prime, u_prime)
 
-        v_targ = (1 - gamma) * c + gamma * max.(c, Q_model(state_action_prime))
         v_targ = (1 - gamma) * c + gamma * max.(c, Q_model(state_action_prime))
 
         function loss_fn(m)

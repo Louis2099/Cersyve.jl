@@ -27,6 +27,8 @@ Q = diagm(Float32[1, 0.1])
 R = diagm(Float32[0.1])
 P, _, _ = ared(A, B, R, Q)
 K = inv(R + B' * P * B) * (B' * P * A)
+AB =  [A B]
+
 
 pi_model = Chain(
     Dense(-K),
@@ -36,6 +38,15 @@ pi_model = Chain(
     # min(u, u_high) = -max(-x, -u_high) = -relu(-x + u_high) + u_high
     Dense(Matrix{Float32}(-I(u_dim)), u_high, relu),
     Dense(Matrix{Float32}(-I(u_dim)), u_high),
+)
+f_model = Chain(
+    Dense(AB), 
+    # max(x, x_low) = relu(x - x_low) + x_low
+    Dense(Matrix{Float32}(I(x_dim)), -x_low, relu),
+    Dense(Matrix{Float32}(I(x_dim)), x_low),
+    # min(x, x_high) = -max(-x, -x_high) = -relu(-x + x_high) + x_high
+    Dense(-Matrix{Float32}(I(x_dim)), x_high, relu),
+    Dense(-Matrix{Float32}(I(x_dim)), x_high),
 )
 
 f_pi_model = Chain(
