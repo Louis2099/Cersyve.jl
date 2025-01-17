@@ -282,7 +282,7 @@ function create_Q_Q_prime(affine_Q, f_pi_model, f_model, task)
     expand_layer = Dense(expand_W, expand_b)
     # println("PASS 2")
     return Chain(Parallel(+,
-        Chain(affine_Q_interval, Dense(Float32[1; 0;;])),
+        Chain(affine_Q, Dense(Float32[1; 0;;])),
         # Chain(filter_x, f_pi_model, expand_layer, affine_Q_interval, Dense(Float32[0; 1;;])),
         Chain(f_model, expand_layer, affine_Q_interval, Dense(Float32[0; 1;;])),
     )), affine_Q_interval
