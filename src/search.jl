@@ -261,7 +261,8 @@ function boundary_guided_search_Q(
         con_g = Flux.gradient(x -> sum(h_model(x[1:task.x_dim, :])), x_pgd[:, 1:div(size(x_pgd, 2), 2)])[1]
         
         # inv_g = Flux.gradient(x -> sum(Q_interval(vcat(f_pi_model(x[1:task.x_dim,:]), zeros(task.u_dim, size(x, 2))))), x_pgd[:, size(con_g, 2) + 1:end])[1]
-        inv_g = Flux.gradient(x -> sum(Q_interval(vcat(task.f_model(x), zeros(task.u_dim, size(x, 2))))), x_pgd[:, size(con_g, 2) + 1:end])[1]
+        f_model = task.f_model
+        inv_g = Flux.gradient(x -> sum(Q_interval(vcat(f_model(x), zeros(task.u_dim, size(x, 2))))), x_pgd[:, size(con_g, 2) + 1:end])[1]
         g = hcat(con_g, inv_g) + Float32(pgd_beta) * m[:, pgd]
         g ./= sqrt.(sum(g .^ 2, dims=1))
 
@@ -328,11 +329,16 @@ function filter_counterexample_Q(
 )::Tuple{BitVector, BitVector}
     h = h_model(xu[1:task.x_dim,:])[1, :]
     v = Q_model(xu)[1, :]
+    h_prime = h_model(task.f_model(xu))[1, :]
 
     min_v = Q_model(xu)[1, :]
     # min_v_prime = interval_Q_model(vcat(f_pi_model(xu[1:task.x_dim,:]), zeros(task.u_dim, size(xu, 2))))[1, :]
     min_v_prime = interval_Q_model(vcat(task.f_model(xu), zeros(task.u_dim, size(xu, 2))))[1, :]
+    
+    # con_prime = (h_prime .> -tol)
     con = (v .<= tol) .& (h .> -tol)
+    # inv = (min_v .<= tol) .& (min_v_prime .> -tol) .& (.~con)
     inv = (min_v .<= tol) .& (min_v_prime .> -tol) .& (.~con)
+    # inv = (min_v .<= tol) .& (min_v_prime .> -tol) .& (con_prime)
     return con, inv
 end

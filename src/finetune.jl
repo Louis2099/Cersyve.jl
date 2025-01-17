@@ -375,7 +375,7 @@ function finetune_Q(
                     h_reg = h_model(x_reg[1:task.x_dim, :])[1, :]
                     v_reg = Q_model(x_reg)[1, :]
                     
-                    v_reg_prime = affine_Q_interval(vcat(f_pi_model(x_reg[1:task.x_dim,:]), zeros(task.u_dim, size(x_reg, 2))))[1, :]
+                    v_reg_prime = affine_Q_interval(vcat(f_model(x_reg), zeros(task.u_dim, size(x_reg, 2))))[1, :]
                     entering = (h_reg .<= -eps_h) .& (v_reg .> 0) .& (
                         v_reg .<= eps_v) .& (v_reg_prime .<= -eps_v)
                     x_reg = x_reg[:, entering]
@@ -397,7 +397,7 @@ function finetune_Q(
                 end
 
                 if n_inv > 0
-                    inv_loss = sum(-Q_model(x_inv) + affine_Q_interval(vcat(f_pi_model(x_inv[1:task.x_dim,:]), zeros(task.u_dim, size(x_inv, 2)))))
+                    inv_loss = sum(-Q_model(x_inv) + affine_Q_interval(vcat(f_model(x_inv), zeros(task.u_dim, size(x_inv, 2)))))
                 else
                     inv_loss = 0
                 end
