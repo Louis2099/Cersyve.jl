@@ -343,6 +343,21 @@ function finetune_Q(
             end
             con, inv = filter_counterexample_Q(task, x_pgd, h_model, Q_model, affine_Q_interval, f_pi_model; tol=tol)
             ce = con .| inv
+
+            inv_ce = x_pgd[:, inv]
+            if size(inv_ce, 2) > 1
+                rand_idx = rand(1:size(inv_ce, 2))
+                example_ce = inv_ce[:, rand_idx]
+                println("INV CE: ", inv_ce[:, rand_idx], Q_model(example_ce), affine_Q_interval(vcat(f_model(example_ce), zeros(task.u_dim, 1))))
+            end
+
+            con_ce = x_pgd[:, con]
+            if size(con_ce, 2) > 1
+                rand_idx = rand(1:size(con_ce, 2))
+                example_ce = inv_ce[:, rand_idx]
+                println("CON CE: ", con_ce[:, rand_idx], Q_model(con_ce[:, rand_idx]), h_model(example_ce[1:task.x_dim, :]))
+            end
+
             push!(buffer, x_pgd[:, ce])
 
             with_logger(logger) do
@@ -436,6 +451,13 @@ function finetune_Q(
                 @info "finetune" value_loss=loss log_step_increment=0
                 @info "finetune" sampled_constraint_counterexample=n_con log_step_increment=0
                 @info "finetune" sampled_invariance_counterexample=n_inv log_step_increment=0
+                
+                
+                @info "finetune" x_W=Q_model[1][1][3].weight[1] log_step_increment=0
+                @info "finetune" x_b=Q_model[1][1][3].bias[1] log_step_increment=0
+                @info "finetune" u_W=Q_model[1][2][2].weight[1] log_step_increment=0
+                @info "finetune" u_b=Q_model[1][2][2].bias[1] log_step_increment=0
+                
                 if !isnothing(reg_method)
                     @info "finetune" regularization_state=n_reg log_step_increment=0
                 end

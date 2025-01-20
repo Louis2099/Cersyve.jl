@@ -39,6 +39,7 @@ pi_model = Chain(
     Dense(Matrix{Float32}(-I(u_dim)), u_high, relu),
     Dense(Matrix{Float32}(-I(u_dim)), u_high),
 )
+
 f_model = Chain(
     Dense(AB), 
     # max(x, x_low) = relu(x - x_low) + x_low

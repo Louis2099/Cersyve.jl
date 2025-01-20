@@ -71,6 +71,7 @@ end
 
 function pretrain_Q(
     Q_model::Chain,
+    f_model::Any,
     f_pi_model::Any,
     pi_model::Any,
     h_model::Any,
@@ -91,8 +92,9 @@ function pretrain_Q(
     apa_coef::Float64 = 0.01,
     snr_coef::Tuple{Float64, Float64} = (1e-3, 5e-4),
     log_dir::Union{String, Nothing} = nothing,
+    bl_strength::Float64 = 1e-2,
 )
-    println("Corrected Model PRETRAIN")
+    println("Corrected L2 Model PRETRAIN")
     rng = MersenneTwister(1)
     # trainable_params = Flux.params(Q_model[1][1][2], Q_model[1][1][3], Q_model[2])
     # optim = Flux.setup(AdamW(lr, (0.9, 0.999), weight_decay), trainable_params)
@@ -113,19 +115,33 @@ function pretrain_Q(
     log_path = joinpath(log_dir, "pretrain_Q_" * Dates.format(Dates.now(), "yyyymmdd_HHMMSS"))
     logger = TBLogger(log_path)
 
+    count = 0
+    x = uniform(x_low, x_high, batch_size)
     for _ in ProgressBar(1:iter_num)
-        x = uniform(x_low, x_high, batch_size)
+        if count % 50 == 0
+            x = uniform(x_low, x_high, batch_size)
+        end
+        count += 1
         u = uniform(u_low, u_high, batch_size)
+        # u = pi_model(x)
         
-        x_prime = f_pi_model(x)
+        state_action = vcat(x, u)
+
+        x_prime = f_model(state_action)
         u_prime = pi_model(x_prime)
         
         c = h_model(x)
+        c_prime = h_model(x_prime)
 
         state_action = vcat(x, u)
         state_action_prime = vcat(x_prime, u_prime)
 
-        v_targ = (1 - gamma) * c + gamma * max.(c, Q_model(state_action_prime))
+        # v_targ = (1 - gamma) * c + gamma * max.(c, Q_model(state_action_prime))
+
+        v_targ = (1 - gamma) * max.(c, c_prime) + gamma * max.(max.(c, c_prime), Q_model(state_action_prime))
+
+        branch_scale_idx = mean(norm(Q_model[1][1](state_action))./norm(Q_model[1][2](state_action)))
+        scale_target = branch_scale_idx * mean(norm(Q_model[1][2][2].weight))
 
         function loss_fn(m)
             if isnothing(penalty)
@@ -139,9 +155,12 @@ function pretrain_Q(
                 # v_pred, apa_loss = forward_with_apa(m, [x x + noise]; alpha=apa_coef)
 
                 # disable apa loss for now
+                # L2_loss = sum(norm(w)^2 for w in Flux.params(m)) + sum(norm(b)^2 for b in Flux.params(m))
+                branch_balance_penalty = bl_strength * (scale_target - mean(norm(m[1][2][2].weight))) ^ 2
                 apa_loss = 0
                 v_pred = m(state_action)
-                return mean((v_pred - v_targ) .^ 2) + apa_loss
+                # return mean((v_pred - v_targ) .^ 2) + apa_loss + L2_strength * L2_loss
+                return mean((v_pred - v_targ) .^ 2) + apa_loss + branch_balance_penalty
             end
         end
 
@@ -155,6 +174,14 @@ function pretrain_Q(
 
         # Flux.update!(optim, Q_model, grad[1])
         with_logger(logger) do
+            
+            @info "pretrain" x_W=Q_model[1][1][3].weight[1] log_step_increment=0
+            @info "pretrain" x_b=Q_model[1][1][3].bias[1] log_step_increment=0
+
+            @info "pretrain" u_W=Q_model[1][2][2].weight[1] log_step_increment=0
+            @info "pretrain" u_b=Q_model[1][2][2].bias[1] log_step_increment=0
+            
+            @info "pretrain" scale_idx=branch_scale_idx log_step_increment=0
             @info "pretrain" loss=loss
             @info "pretrain" constraint_satisfying_rate=mean(c .<= 0) log_step_increment=0
             @info "pretrain" predicted_feasible_rate=mean(Q_model(state_action) .<= 0) log_step_increment=0
