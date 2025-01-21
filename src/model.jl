@@ -188,19 +188,41 @@ end
 
 function weight_l(W::AbstractMatrix)
     # Split the weight matrix into positive and negative components
-    W_plus = max.(W, 0)  # Element-wise maximum
+    W_plus = max.(W, 0)  # Element-wise maximum 
     W_minus = min.(W, 0) # Element-wise minimum
     
     # Construct the new weight matrix
     new_W = [W_plus W_minus zeros(size(W)) zeros(size(W))]
-    println("new_W shape", size(new_W))
+    # println("new_W shape", size(new_W))
     return new_W
 end
 
+function weight_lu(W::AbstractMatrix)
+    # Split the weight matrix into positive and negative components
+    W_plus = max.(W, 0)  # Element-wise maximum 
+    W_minus = min.(W, 0) # Element-wise minimum
+    
+    # Construct the new weight matrix
+    new_W = [W_plus W_minus zeros(size(W)) zeros(size(W));
+            zeros(size(W)) zeros(size(W)) W_plus W_minus]
+    # println("new_W shape", size(new_W))
+    return new_W
+end
 
+function weight_pos_neg(num_x::Int64)
+    new_W = [Float64.(I(num_x)); -Float64.(I(num_x))]
+    # println("new_W type", typeof(new_W))
+    return new_W
+end
+
+function weight_neg(num_x::Int64)
+    new_W = [Float64.(I(num_x)) zeros(size(I(num_x))); 
+            zeros(size(I(num_x))) -Float64.(I(num_x))]
+    # println("new_W type", typeof(new_W))
+    return new_W
+end
 
 function create_parallel_affine_Q_interval(affine_Q, x_dim, u_dim, u_low, u_high)
-    println("UPDATED MIN Q")
     W_x = create_filter_matrix(1, x_dim, x_dim + u_dim)
     b_x = zeros(x_dim)
     filter_x = Dense(W_x, b_x)
@@ -229,7 +251,7 @@ function create_parallel_affine_Q_interval(affine_Q, x_dim, u_dim, u_low, u_high
 
     Q_w = affine_Q[1][2][4].weight
     Q_b = affine_Q[1][2][4].bias
-    println("shape of Q_w", size(Q_w))
+    # println("shape of Q_w", size(Q_w))
     h2_luul_2_Q_l = Dense(weight_l(Q_w), Q_b)
 
     # Branch 1
@@ -261,6 +283,73 @@ function create_parallel_affine_Q_interval(affine_Q, x_dim, u_dim, u_low, u_high
     return model
 end
 
+function create_mul_affine_Q_interval(affine_Q, x_dim, u_dim, u_low, u_high, output_emb_dim = 8)
+    W_x = create_filter_matrix(1, x_dim, x_dim + u_dim)
+    b_x = zeros(x_dim)
+    filter_x = Dense(W_x, b_x)
+    W_u = create_filter_matrix(x_dim + 1, x_dim + u_dim, x_dim + u_dim)
+    u_b = zeros(u_dim)
+    filter_u = Dense(W_u, u_b)
+
+    x_w1 = affine_Q[1][1][2].weight
+    x_b1 = affine_Q[1][1][2].bias
+    x_w2 = affine_Q[1][1][3].weight
+    x_b2 = affine_Q[1][1][3].bias
+    x_w3 = affine_Q[1][1][4].weight
+    x_b3 = affine_Q[1][1][4].bias
+    minmax_layer = Dense(weight_pos_neg(output_emb_dim), zeros(2*output_emb_dim), relu)
+    neg_layer = Dense(weight_neg(output_emb_dim), zeros(2*output_emb_dim))
+
+    x_2_x_luul = Dense(u_dim, 4*u_dim; bias = [u_low; u_high; u_high; u_low])
+    x_2_x_luul.weight .= 0.0
+
+    h1_w = affine_Q[1][2][2].weight
+    h1_b = affine_Q[1][2][2].bias
+    x_luul_2_h1_luul = Dense(weight_luul(h1_w), bias_luul(h1_b), relu)
+
+    h2_w = affine_Q[1][2][3].weight
+    h2_b = affine_Q[1][2][3].bias   
+    h1_luul_2_h2_luul = Dense(weight_luul(h2_w), bias_luul(h2_b), relu)
+
+
+    Q_w = affine_Q[1][2][4].weight
+    Q_b = affine_Q[1][2][4].bias
+    # println("shape of Q_w", size(Q_w))
+    h2_luul_2_Q_lu = Dense(weight_lu(Q_w), [Q_b;Q_b])
+
+
+    sum_layer = Dense(ones(1, 2*output_emb_dim), zeros(1))
+    # Branch 1
+    b1 = Chain(
+        filter_x,
+        Dense(x_w1, x_b1, relu),
+        Dense(x_w2, x_b2, relu),
+        Dense(x_w3, x_b3),
+        minmax_layer,
+        neg_layer
+    )
+
+    b_low = Chain(
+        filter_u,
+        x_2_x_luul,
+        x_luul_2_h1_luul,
+        h1_luul_2_h2_luul,
+        h2_luul_2_Q_lu
+    )
+    model = Chain(
+        Parallel(
+            .*, 
+            b1,
+            b_low
+            
+        ),
+        sum_layer
+
+    )
+
+
+    return model
+end
 
 function create_Q_constraint_model(Q_model, h_model, task)
     # function filter_x(input)
@@ -337,11 +426,66 @@ function create_parallel_affine_Q(x_dim, u_dim, hidden_sizes=32)
 end
 
 
+function create_mul_affine_Q(x_dim, u_dim, hidden_sizes=32, output_emb_dim = 8)
+    # can take both x and xu as input
+    # function filter_x(input)
+    #     return input[1:x_dim, :]
+    # end
+    
+    # function filter_u(input)
+    #     return input[x_dim+1:end, :]
+    # end
+    W_x = create_filter_matrix(1, x_dim, x_dim + u_dim)
+    b_x = zeros(x_dim)
+    filter_x = Dense(W_x, b_x)
+    W_u = create_filter_matrix(x_dim + 1, x_dim + u_dim, x_dim + u_dim)
+    u_b = zeros(u_dim)
+    filter_u = Dense(W_u, u_b)
+
+    # start_idx, end_idx, expand_dim
+    b1_embedding_dim = hidden_sizes
+    W_expand_emb = create_expand_matrix(1, b1_embedding_dim, b1_embedding_dim + u_dim)
+    b_expand_emb = zeros(b1_embedding_dim + u_dim)
+    expand_emb = Dense(W_expand_emb, b_expand_emb)
+
+    W_expand_u = create_expand_matrix(b1_embedding_dim + 1, b1_embedding_dim + u_dim, b1_embedding_dim + u_dim)
+    b_expand_u = zeros(b1_embedding_dim + u_dim)
+    expand_u = Dense(W_expand_u, b_expand_u)
+
+    # Branch 1
+    b1 = Chain(
+        filter_x,
+        Dense(x_dim, 32, relu),
+        Dense(32, 32, relu),
+        Dense(32, output_emb_dim)
+    )
+
+    b2 = Chain(
+        filter_u,
+        # expand_u
+        Dense(u_dim, hidden_sizes, relu),
+        Dense(hidden_sizes, hidden_sizes, relu),
+        Dense(hidden_sizes, output_emb_dim)
+    )
+    # final_layer = Chain(Dense(32 + u_dim, 1))
+    sum_layer = Dense(ones(1, output_emb_dim), zeros(1))
+    # Complete model
+    model = Chain(
+        Parallel(
+            .*, 
+            b1,
+            b2
+        ),
+        sum_layer
+    )
+    return model
+end
+
 
 function create_Q_Q_prime(affine_Q, f_pi_model, f_model, task)
     # creating Q_prime
-    affine_Q_interval = create_parallel_affine_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
-
+    # affine_Q_interval = create_parallel_affine_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
+    affine_Q_interval = create_mul_affine_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
     W_x = create_filter_matrix(1, task.x_dim, task.x_dim + task.u_dim)
     b_x = zeros(task.x_dim)
     filter_x = Dense(W_x, b_x)

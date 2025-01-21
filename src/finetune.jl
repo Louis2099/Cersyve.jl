@@ -301,7 +301,6 @@ function finetune_Q(
         return loss
     end
     
-    println("UPDATED FINETUNE Q 3")
     skipped = 0
     verified = 0
     con_start_values = nothing
@@ -315,8 +314,10 @@ function finetune_Q(
     # opt_state = Flux.setup(Adam(lr), Q_model)
     opt_state = Optimisers.setup(Optimisers.Adam(lr), Q_model)
     # println(typeof(opt_state))
-    Optimisers.freeze!(opt_state.layers[1].layers[1].layers[1])
+    # Optimisers.freeze!(opt_state.layers[1].layers[1].layers[1])
+    Optimisers.freeze!(opt_state.layers[1].layers[1])
     Optimisers.freeze!(opt_state.layers[1].layers[2].layers[1])
+    Optimisers.freeze!(opt_state.layers[2])
     ######################################################
     if isnothing(log_dir)
         log_dir = joinpath(@__DIR__, "../log/")
@@ -344,19 +345,19 @@ function finetune_Q(
             con, inv = filter_counterexample_Q(task, x_pgd, h_model, Q_model, affine_Q_interval, f_pi_model; tol=tol)
             ce = con .| inv
 
-            inv_ce = x_pgd[:, inv]
-            if size(inv_ce, 2) > 1
-                rand_idx = rand(1:size(inv_ce, 2))
-                example_ce = inv_ce[:, rand_idx]
-                println("INV CE: ", inv_ce[:, rand_idx], Q_model(example_ce), affine_Q_interval(vcat(f_model(example_ce), zeros(task.u_dim, 1))))
-            end
+            # inv_ce = x_pgd[:, inv]
+            # if size(inv_ce, 2) > 1
+            #     rand_idx = rand(1:size(inv_ce, 2))
+            #     example_ce = inv_ce[:, rand_idx]
+            #     println("INV CE: ", inv_ce[:, rand_idx], Q_model(example_ce), affine_Q_interval(vcat(f_model(example_ce), zeros(task.u_dim, 1))))
+            # end
 
-            con_ce = x_pgd[:, con]
-            if size(con_ce, 2) > 1
-                rand_idx = rand(1:size(con_ce, 2))
-                example_ce = con_ce[:, rand_idx]
-                println("CON CE: ", con_ce[:, rand_idx], Q_model(example_ce), h_model(example_ce[1:task.x_dim, :]))
-            end
+            # con_ce = x_pgd[:, con]
+            # if size(con_ce, 2) > 1
+            #     rand_idx = rand(1:size(con_ce, 2))
+            #     example_ce = con_ce[:, rand_idx]
+            #     println("CON CE: ", con_ce[:, rand_idx], Q_model(example_ce), h_model(example_ce[1:task.x_dim, :]))
+            # end
 
             push!(buffer, x_pgd[:, ce])
 
@@ -392,10 +393,10 @@ function finetune_Q(
                     
                     v_reg_prime = affine_Q_interval(vcat(f_model(x_reg), zeros(task.u_dim, size(x_reg, 2))))[1, :]
                     
-                    # entering = (h_reg .<= -eps_h) .& (v_reg .> 0) .& (
-                    #     v_reg .<= eps_v) .& (v_reg_prime .<= -eps_v)
+                    entering = (h_reg .<= -eps_h) .& (v_reg .> 0) .& (
+                        v_reg .<= eps_v) .& (v_reg_prime .<= -eps_v)
 
-                    entering = (h_reg .<= 0) .& (v_reg .> 0).& (v_reg_prime .<= eps_v)
+                    # entering = (h_reg .<= 0) .& (v_reg .> 0).& (v_reg_prime .<= eps_v)
 
                     x_reg = x_reg[:, entering]
                     n_reg = size(x_reg, 2)

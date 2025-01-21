@@ -104,6 +104,7 @@ function pretrain_Q(
     # println(typeof(optim))
     Optimisers.freeze!(optim.layers[1].layers[1].layers[1])
     Optimisers.freeze!(optim.layers[1].layers[2].layers[1])
+    Optimisers.freeze!(optim.layers[2])
     
     # println(optim.layers[1].layers[1].layers[1].weight)
 
@@ -157,11 +158,12 @@ function pretrain_Q(
                 # disable apa loss for now
                 # L2_loss = sum(norm(w)^2 for w in Flux.params(m)) + sum(norm(b)^2 for b in Flux.params(m))
                 # branch_balance_penalty = bl_strength * scale_target * (norm(m[1][2][2].weight)^2 + norm(m[1][2][3].weight)^2 + norm(m[1][2][4].weight)^2 +norm(m[1][2][2].bias)^2 + norm(m[1][2][3].bias)^2 + norm(m[1][2][4].bias)^2) 
-                branch_balance_penalty = bl_strength * (branch_scale_idx-1) * norm(m[1][2](state_action))^2
+                
+                # branch_balance_penalty = bl_strength * (branch_scale_idx-1) * norm(m[1][2](state_action))^2
                 apa_loss = 0
                 v_pred = m(state_action)
                 # return mean((v_pred - v_targ) .^ 2) + apa_loss + L2_strength * L2_loss
-                return mean((v_pred - v_targ) .^ 2) + apa_loss - branch_balance_penalty
+                return mean((v_pred - v_targ) .^ 2) + apa_loss
             end
         end
 
