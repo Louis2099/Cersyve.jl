@@ -354,8 +354,8 @@ function finetune_Q(
             con_ce = x_pgd[:, con]
             if size(con_ce, 2) > 1
                 rand_idx = rand(1:size(con_ce, 2))
-                example_ce = inv_ce[:, rand_idx]
-                println("CON CE: ", con_ce[:, rand_idx], Q_model(con_ce[:, rand_idx]), h_model(example_ce[1:task.x_dim, :]))
+                example_ce = con_ce[:, rand_idx]
+                println("CON CE: ", con_ce[:, rand_idx], Q_model(example_ce), h_model(example_ce[1:task.x_dim, :]))
             end
 
             push!(buffer, x_pgd[:, ce])
@@ -391,8 +391,12 @@ function finetune_Q(
                     v_reg = Q_model(x_reg)[1, :]
                     
                     v_reg_prime = affine_Q_interval(vcat(f_model(x_reg), zeros(task.u_dim, size(x_reg, 2))))[1, :]
-                    entering = (h_reg .<= -eps_h) .& (v_reg .> 0) .& (
-                        v_reg .<= eps_v) .& (v_reg_prime .<= -eps_v)
+                    
+                    # entering = (h_reg .<= -eps_h) .& (v_reg .> 0) .& (
+                    #     v_reg .<= eps_v) .& (v_reg_prime .<= -eps_v)
+
+                    entering = (h_reg .<= 0) .& (v_reg .> 0).& (v_reg_prime .<= eps_v)
+
                     x_reg = x_reg[:, entering]
                     n_reg = size(x_reg, 2)
                 elseif reg_method == "RSR"
@@ -455,8 +459,8 @@ function finetune_Q(
                 
                 @info "finetune" x_W=Q_model[1][1][3].weight[1] log_step_increment=0
                 @info "finetune" x_b=Q_model[1][1][3].bias[1] log_step_increment=0
-                @info "finetune" u_W=Q_model[1][2][2].weight[1] log_step_increment=0
-                @info "finetune" u_b=Q_model[1][2][2].bias[1] log_step_increment=0
+                @info "finetune" u_W=Q_model[1][2][3].weight[1] log_step_increment=0
+                @info "finetune" u_b=Q_model[1][2][3].bias[1] log_step_increment=0
                 
                 if !isnothing(reg_method)
                     @info "finetune" regularization_state=n_reg log_step_increment=0

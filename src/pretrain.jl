@@ -141,7 +141,7 @@ function pretrain_Q(
         v_targ = (1 - gamma) * max.(c, c_prime) + gamma * max.(max.(c, c_prime), Q_model(state_action_prime))
 
         branch_scale_idx = mean(norm(Q_model[1][1](state_action))./norm(Q_model[1][2](state_action)))
-        scale_target = branch_scale_idx * mean(norm(Q_model[1][2][2].weight))
+        
 
         function loss_fn(m)
             if isnothing(penalty)
@@ -156,11 +156,12 @@ function pretrain_Q(
 
                 # disable apa loss for now
                 # L2_loss = sum(norm(w)^2 for w in Flux.params(m)) + sum(norm(b)^2 for b in Flux.params(m))
-                branch_balance_penalty = bl_strength * (scale_target - mean(norm(m[1][2][2].weight))) ^ 2
+                # branch_balance_penalty = bl_strength * scale_target * (norm(m[1][2][2].weight)^2 + norm(m[1][2][3].weight)^2 + norm(m[1][2][4].weight)^2 +norm(m[1][2][2].bias)^2 + norm(m[1][2][3].bias)^2 + norm(m[1][2][4].bias)^2) 
+                branch_balance_penalty = bl_strength * (branch_scale_idx-1) * norm(m[1][2](state_action))^2
                 apa_loss = 0
                 v_pred = m(state_action)
                 # return mean((v_pred - v_targ) .^ 2) + apa_loss + L2_strength * L2_loss
-                return mean((v_pred - v_targ) .^ 2) + apa_loss + branch_balance_penalty
+                return mean((v_pred - v_targ) .^ 2) + apa_loss - branch_balance_penalty
             end
         end
 
