@@ -306,22 +306,30 @@ function finetune_Q(
     con_start_values = nothing
     inv_start_values = nothing
 
-    buffer = Buffer(capacity, length(x_low))
 
     ######################################################
-    # trainable_params = Flux.params(Q_model[1][1][2], Q_model[1][1][3], Q_model[2])
-    # opt_state = Flux.setup(Adam(lr), trainable_params)
-    # opt_state = Flux.setup(Adam(lr), Q_model)
-    opt_state = Optimisers.setup(Optimisers.Adam(lr), Q_model)
+    #TODO Design con, inv buffer independently, and update the model interchangably
+    # buffer = Buffer(capacity, length(x_low))
+
+    con_buffer = Buffer(capacity, length(x_low))
+    inv_buffer = Buffer(capacity, length(x_low))
+
     
+    # opt_state = Optimisers.setup(Optimisers.Adam(lr), Q_model)
+    opt_state_all = Optimisers.setup(Optimisers.Adam(lr), Q_model)
+    opt_state_u = Optimisers.setup(Optimisers.Adam(lr), Q_model)
     
     #TODO for the multiply model
     # Optimisers.freeze!(opt_state.layers[1].layers[1].layers[1])
-    Optimisers.freeze!(opt_state.layers[1].layers[1].layers[1])
-    Optimisers.freeze!(opt_state.layers[1].layers[1].layers[2])
-    Optimisers.freeze!(opt_state.layers[1].layers[1].layers[3])
-    Optimisers.freeze!(opt_state.layers[1].layers[2].layers[1])
-    Optimisers.freeze!(opt_state.layers[2])
+    Optimisers.freeze!(opt_state_all.layers[1].layers[1].layers[1])
+    Optimisers.freeze!(opt_state_all.layers[1].layers[1].layers[2])
+    Optimisers.freeze!(opt_state_all.layers[1].layers[1].layers[3])
+    Optimisers.freeze!(opt_state_all.layers[1].layers[2].layers[1])
+    Optimisers.freeze!(opt_state_all.layers[2])
+
+    Optimisers.freeze!(opt_state_u.layers[1].layers[1])
+    Optimisers.freeze!(opt_state_u.layers[1].layers[2].layers[1])
+    Optimisers.freeze!(opt_state_u.layers[2])
     ######################################################
     if isnothing(log_dir)
         log_dir = joinpath(@__DIR__, "../log/")
@@ -369,7 +377,9 @@ function finetune_Q(
             #     println("CON CE: ", con_ce[:, rand_idx], Q_model(example_ce), h_model(example_ce[1:task.x_dim, :]))
             # end
 
-            push!(buffer, x_pgd[:, ce])
+            push!(con_buffer, x_pgd[:, con])
+            push!(inv_buffer, x_pgd[:, inv])
+            # push!(buffer, x_pgd[:, ce])
 
             with_logger(logger) do
                 @info "finetune" searched_boundary_states=size(x_bnd, 2) log_step_increment=0
@@ -437,9 +447,6 @@ function finetune_Q(
                 else
                     reg_loss = 0
                 end
-                # println("n_con: ", con_loss)
-                # println("n_inv: ", inv_loss)
-                # println("n_reg: ", reg_loss)
                 loss = (con_loss + inv_loss) / max(n_con + n_inv, 1) + reg_coef * reg_loss
                 return loss
             end
