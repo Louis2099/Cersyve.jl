@@ -42,6 +42,10 @@ export create_Q_Q_prime
 export create_Q_constraint_model
 export create_mul_affine_Q_interval
 export create_mul_affine_Q
+export create_lim_X_affine_Q
+export create_X_affine_Q_interval
+export create_baseline_affine_Q
+export create_baseline_affine_Q_interval
 
 include("double_integrator.jl")
 include("pendulum.jl")

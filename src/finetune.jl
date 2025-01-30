@@ -313,9 +313,13 @@ function finetune_Q(
     # opt_state = Flux.setup(Adam(lr), trainable_params)
     # opt_state = Flux.setup(Adam(lr), Q_model)
     opt_state = Optimisers.setup(Optimisers.Adam(lr), Q_model)
-    # println(typeof(opt_state))
+    
+    
+    #TODO for the multiply model
     # Optimisers.freeze!(opt_state.layers[1].layers[1].layers[1])
-    Optimisers.freeze!(opt_state.layers[1].layers[1])
+    Optimisers.freeze!(opt_state.layers[1].layers[1].layers[1])
+    Optimisers.freeze!(opt_state.layers[1].layers[1].layers[2])
+    Optimisers.freeze!(opt_state.layers[1].layers[1].layers[3])
     Optimisers.freeze!(opt_state.layers[1].layers[2].layers[1])
     Optimisers.freeze!(opt_state.layers[2])
     ######################################################
@@ -328,6 +332,12 @@ function finetune_Q(
     Q_h_model = create_Q_constraint_model(Q_model, h_model, task)
     Q_Q_prime_model, affine_Q_interval = create_Q_Q_prime(Q_model, f_pi_model, f_model, task)
 
+    # println(pathof(ModelVerification))
+
+    #Test verify
+    # con_res, inv_res = verify_value(x_low, x_high, Q_h_model, Q_Q_prime_model;
+    #             con_start_values=con_start_values, inv_start_values=inv_start_values)
+    # exit()
     for i in ProgressBar(1:max_iter)
         if (length(buffer.stored) < search_stop)
             x = uniform(x_low, x_high, round(Int64, search_size / bnd_ratio))
@@ -458,10 +468,15 @@ function finetune_Q(
                 @info "finetune" sampled_invariance_counterexample=n_inv log_step_increment=0
                 
                 
-                @info "finetune" x_W=Q_model[1][1][3].weight[1] log_step_increment=0
-                @info "finetune" x_b=Q_model[1][1][3].bias[1] log_step_increment=0
-                @info "finetune" u_W=Q_model[1][2][3].weight[1] log_step_increment=0
-                @info "finetune" u_b=Q_model[1][2][3].bias[1] log_step_increment=0
+                # @info "finetune" x_W=Q_model[1][1][3].weight[1] log_step_increment=0
+                # @info "finetune" x_b=Q_model[1][1][3].bias[1] log_step_increment=0
+                # @info "finetune" u_W=Q_model[1][2][3].weight[1] log_step_increment=0
+                # @info "finetune" u_b=Q_model[1][2][3].bias[1] log_step_increment=0
+
+                # @info "finetune" x_W=Q_model[1][1][2].weight[1] log_step_increment=0
+                # @info "finetune" x_b=Q_model[1][1][2].bias[1] log_step_increment=0
+                # @info "finetune" u_W=Q_model[1][2][2].weight[1] log_step_increment=0
+                # @info "finetune" u_b=Q_model[1][2][2].bias[1] log_step_increment=0
                 
                 if !isnothing(reg_method)
                     @info "finetune" regularization_state=n_reg log_step_increment=0
@@ -507,6 +522,7 @@ function finetune_Q(
         end
 
         if i % eval_every == 0
+            # fea_rate = mean(affine_Q_interval(uniform(x_low, x_high, search_size)) .<= 0)
             fea_rate = mean(Q_model(uniform(x_low, x_high, search_size)) .<= 0)
 
             with_logger(logger) do

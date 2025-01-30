@@ -331,15 +331,17 @@ function filter_counterexample_Q(
     v = Q_model(xu)[1, :]
     h_prime = h_model(task.f_model(xu))[1, :]
 
-    min_v = Q_model(xu)[1, :]
+    min_v = interval_Q_model(xu)[1, :]
     # min_v_prime = interval_Q_model(vcat(f_pi_model(xu[1:task.x_dim,:]), zeros(task.u_dim, size(xu, 2))))[1, :]
     min_v_prime = interval_Q_model(vcat(task.f_model(xu), zeros(task.u_dim, size(xu, 2))))[1, :]
     
+    # con = ((v .<= tol) .& (h .> -tol))
+    # inv = (v .<= tol) .& (min_v_prime .> -tol) .& (.~con)
     
-    # con = (v .<= tol) .& (h .> -tol)
-    # inv = (min_v .<= tol) .& (min_v_prime .> -tol) .& (.~con)
+    con = ((v .<= tol) .& (h .> -tol)) .| ((min_v .<= tol) .& (h .> -tol))
+    inv = (v .<= tol) .& (min_v_prime .> -tol) .& (.~con)
 
-    con = (v .<= -tol) .& (h .> tol)
-    inv = (min_v .<= -tol) .& (min_v_prime .> tol) .& (.~con)
+    # con = (v .<= -tol) .& (h .> tol)
+    # inv = (v .<= -tol) .& (min_v_prime .> tol) .& (.~con)
     return con, inv
 end

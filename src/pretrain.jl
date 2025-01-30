@@ -102,9 +102,9 @@ function pretrain_Q(
     # optim = Flux.setup(AdamW(lr, (0.9, 0.999), weight_decay), Q_model)
     optim = Optimisers.setup(Optimisers.AdamW(lr, (0.9, 0.999), weight_decay), Q_model)
     # println(typeof(optim))
-    Optimisers.freeze!(optim.layers[1].layers[1].layers[1])
-    Optimisers.freeze!(optim.layers[1].layers[2].layers[1])
-    Optimisers.freeze!(optim.layers[2])
+    # Optimisers.freeze!(optim.layers[1].layers[1].layers[1])
+    # Optimisers.freeze!(optim.layers[1].layers[2].layers[1])
+    # Optimisers.freeze!(optim.layers[2])
     
     # println(optim.layers[1].layers[1].layers[1].weight)
 
@@ -141,7 +141,7 @@ function pretrain_Q(
 
         v_targ = (1 - gamma) * max.(c, c_prime) + gamma * max.(max.(c, c_prime), Q_model(state_action_prime))
 
-        branch_scale_idx = mean(norm(Q_model[1][1](state_action))./norm(Q_model[1][2](state_action)))
+        # branch_scale_idx = mean(norm(Q_model[1][1](state_action))./norm(Q_model[1][2](state_action)))
         
 
         function loss_fn(m)
@@ -178,13 +178,19 @@ function pretrain_Q(
         # Flux.update!(optim, Q_model, grad[1])
         with_logger(logger) do
             
-            @info "pretrain" x_W=Q_model[1][1][3].weight[1] log_step_increment=0
-            @info "pretrain" x_b=Q_model[1][1][3].bias[1] log_step_increment=0
+            # @info "pretrain" x_W=Q_model[1][1][3].weight[1] log_step_increment=0
+            # @info "pretrain" x_b=Q_model[1][1][3].bias[1] log_step_increment=0
 
-            @info "pretrain" u_W=Q_model[1][2][2].weight[1] log_step_increment=0
-            @info "pretrain" u_b=Q_model[1][2][2].bias[1] log_step_increment=0
+            # @info "pretrain" u_W=Q_model[1][2][2].weight[1] log_step_increment=0
+            # @info "pretrain" u_b=Q_model[1][2][2].bias[1] log_step_increment=0
             
-            @info "pretrain" scale_idx=branch_scale_idx log_step_increment=0
+            # @info "pretrain" x_W=Q_model[1][1][2].weight[1] log_step_increment=0
+            # @info "pretrain" x_b=Q_model[1][1][2].bias[1] log_step_increment=0
+
+            # @info "pretrain" u_W=Q_model[1][2][2].weight[1] log_step_increment=0
+            # @info "pretrain" u_b=Q_model[1][2][2].bias[1] log_step_increment=0
+
+            # @info "pretrain" scale_idx=branch_scale_idx log_step_increment=0
             @info "pretrain" loss=loss
             @info "pretrain" constraint_satisfying_rate=mean(c .<= 0) log_step_increment=0
             @info "pretrain" predicted_feasible_rate=mean(Q_model(state_action) .<= 0) log_step_increment=0
