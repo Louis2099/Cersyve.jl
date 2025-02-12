@@ -81,6 +81,7 @@ function pretrain_Q(
     u_high::Vector{Float32},
     # x_a_low::Vector{Float32},
     # x_a_high::Vector{Float32},
+    task::Any,
     gamma::Float64 = 0.9,
     lr::Float64 = 3e-4,
     batch_size::Int64 = 256,
@@ -100,13 +101,13 @@ function pretrain_Q(
     # optim = Flux.setup(AdamW(lr, (0.9, 0.999), weight_decay), trainable_params)
 
     # optim = Flux.setup(AdamW(lr, (0.9, 0.999), weight_decay), Q_model)
+
+    #TODO: for mul model
     optim = Optimisers.setup(Optimisers.AdamW(lr, (0.9, 0.999), weight_decay), Q_model)
-    # println(typeof(optim))
-    # Optimisers.freeze!(optim.layers[1].layers[1].layers[1])
+    Optimisers.freeze!(optim.layers[1].layers[1].layers[1])
     # Optimisers.freeze!(optim.layers[1].layers[2].layers[1])
-    # Optimisers.freeze!(optim.layers[2])
-    
-    # println(optim.layers[1].layers[1].layers[1].weight)
+    Optimisers.freeze!(optim.layers[2])
+
 
 
     if isnothing(log_dir)
@@ -119,10 +120,11 @@ function pretrain_Q(
     count = 0
     x = uniform(x_low, x_high, batch_size)
     for _ in ProgressBar(1:iter_num)
-        if count % 50 == 0
-            x = uniform(x_low, x_high, batch_size)
-        end
+        # if count % 50 == 0
+        #     x = uniform(x_low, x_high, batch_size)
+        # end
         count += 1
+        x = uniform(x_low, x_high, batch_size)
         u = uniform(u_low, u_high, batch_size)
         # u = pi_model(x)
         
@@ -138,9 +140,27 @@ function pretrain_Q(
         state_action_prime = vcat(x_prime, u_prime)
 
         # v_targ = (1 - gamma) * c + gamma * max.(c, Q_model(state_action_prime))
+        
+        #TODO: learning target can be pi or argmin
+        # v_targ = (1 - gamma) * max.(c, c_prime) + gamma * max.(max.(c, c_prime), Q_model(state_action_prime))
+        # v_targ = (1 - gamma) * c + gamma * max.(c, Q_model(state_action_prime))
+        argmin_Q = create_x_mul_xu_Q_interval(Q_model, task.x_dim, task.u_dim, task.u_low, task.u_high)
+        v_targ = (1 - gamma) * max.(c, c_prime) + gamma * max.(max.(c, c_prime), argmin_Q(state_action_prime))
 
-        v_targ = (1 - gamma) * max.(c, c_prime) + gamma * max.(max.(c, c_prime), Q_model(state_action_prime))
+        #TODO: use f and pi, get MC learning target
+        # T = 100
+        # traj = Array{Float32}(undef, size(x)..., T)
+        # traj[:, :, 1] = x
+        # x_temp = copy(x_prime)
+        # for i in 2:T
+        #     traj[:, :, i] = x_temp
+        #     x_temp = f_pi_model(x_temp)
+        # end
 
+        # v_targ = maximum(h_model(traj)[1, :, :], dims=2)
+        # v_targ = transpose(v_targ)
+        # argmin_Q = create_mul_Q_interval(Q_model, task.x_dim, task.u_dim, task.u_low, task.u_high)
+        # v_targ = (1 - gamma) * v_targ + gamma * max.(max.(c, c_prime), argmin_Q(state_action_prime))
         # branch_scale_idx = mean(norm(Q_model[1][1](state_action))./norm(Q_model[1][2](state_action)))
         
 

@@ -5,12 +5,22 @@ function verify_value(
     V_V_prime_model::Any;
     con_start_values::Union{Nothing, Vector{Float64}} = nothing,
     inv_start_values::Union{Nothing, Vector{Float64}} = nothing,
+    tol::Float64 = 1e-5,
 )::Tuple{ModelVerification.ResultInfo, ModelVerification.ResultInfo}
     search_method = BFS(max_iter=1000000, batch_size=1000)
     split_method = Bisect(1)
     solver = MIPVerify(pre_bound_method=Crown())
     X = Hyperrectangle(low=x_low, high=x_high)
     Y = Complement(HPolyhedron([1 0; 0 -1], [0, 0]))
+    
+    #TODO: Double posi-bound
+    if tol != 0.0
+        rec_tor = ceil(Int, 1/tol)
+    
+        # Y = Complement(HPolyhedron([rec_tor 0; 0 -rec_tor], [-1, -1]))
+        
+        # Y = Complement(HPolyhedron([rec_tor 0; 0 -rec_tor], [-1, 0]))
+    end
 
     # verify constraint property
     con_problem = Problem(V_h_model, X, Y)

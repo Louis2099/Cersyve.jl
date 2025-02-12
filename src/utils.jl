@@ -167,7 +167,7 @@ function train_dynamics(
 
     rng = MersenneTwister(1)
     loader = Flux.DataLoader((xu, dx), batchsize=batch_size, shuffle=true)
-    optim = Flux.setup(AdamW(lr, (0.9, 0.999), weight_decay), f_model)
+    optim = Flux.setup(Flux.AdamW(lr, (0.9, 0.999), weight_decay), f_model)
     if isnothing(log_dir)
         log_dir = joinpath(@__DIR__, "../log/")
     end
@@ -217,7 +217,7 @@ function train_constraint(
     n_iter::Int64 = 100000,
     log_dir::Union{String, Nothing} = nothing,
 )
-    optim = Flux.setup(Adam(lr), h_model)
+    optim = Flux.setup(Flux.Adam(lr), h_model)
     if isnothing(log_dir)
         log_dir = joinpath(@__DIR__, "../log/")
     end

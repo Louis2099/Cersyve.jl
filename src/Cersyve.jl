@@ -27,6 +27,8 @@ export CartPole
 export PointMass
 export RobotArm
 export RobotDog
+export DoubleIntegrator2D
+export Unicycle4D
 
 export collect_data
 export collect_python_data
@@ -46,7 +48,17 @@ export create_lim_X_affine_Q
 export create_X_affine_Q_interval
 export create_baseline_affine_Q
 export create_baseline_affine_Q_interval
+export create_mul_Q
+export create_mul_Q_interval
+export create_x_mul_xu_Q
+export create_x_mul_xu_Q_interval
+export create_x_add_xu_Q
+export create_x_add_xu_Q_interval
+export backtrack_GD_U
+export uniform
+export minimize_Q
 
+include("2D_double_integrator.jl")
 include("double_integrator.jl")
 include("pendulum.jl")
 include("unicycle.jl")
@@ -64,5 +76,6 @@ include("buffer.jl")
 include("search.jl")
 include("verify.jl")
 include("finetune.jl")
-
+include("backtrack_u.jl")
+include("unicycle4D.jl")
 end
