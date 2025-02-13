@@ -17,6 +17,11 @@ u_high = Float32[1, 1]
 dt = 0.1
 ro = 0.4
 
+# two square convex hull at 0.5 and -0.5
+convex_hull1 = [-0.4; 0.6; -0.4; 0.6]
+convex_hull2 = [0.6; -0.4; 0.6; -0.4]
+
+
 function dynamics(x::Array{Float32}, u::Array{Float32})::Array{Float32}
     xo = x[1, ..]
     yo = x[2, ..]
@@ -39,6 +44,14 @@ end
 
 function constraint(x::Array{Float32})::Array{Float32}
     return ro .- sqrt.(sum(x[1:2, ..] .^ 2; dims=1))
+end
+
+function convex_hull_constraint(x::Array{Float32})::Array{Float32}
+    X = x[1:2, ..]
+    A = [1 0; -1 0; 0 1; 0 -1]
+    cost1 = -(A*X - convex_hull1)
+    cost2 = -(A*X - convex_hull2)
+    return max.(cost1, cost2)
 end
 
 function terminated(x::Array{Float32})::Array{Float32}
