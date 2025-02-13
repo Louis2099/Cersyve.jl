@@ -374,7 +374,7 @@ function finetune_Q(
             
              
             ce = con .| inv .| arg_con
-
+            
             push!(con_buffer, x_pgd[:, con])
             push!(inv_buffer, x_pgd[:, inv])
             push!(buffer, x_pgd[:, ce])
@@ -502,6 +502,7 @@ function finetune_Q(
                     reg_loss = 0
                 end
                 loss = (con_loss + arg_con_loss + inv_loss) / max(n_con + n_arg_con + n_inv, 1) + reg_coef * reg_loss
+                # loss = (con_loss + inv_loss) / max(n_con + n_inv, 1) + reg_coef * reg_loss
                 return loss
             end
             
