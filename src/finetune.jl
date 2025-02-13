@@ -360,7 +360,11 @@ function finetune_Q(
             x = uniform(x_low, x_high, round(Int64, search_size / bnd_ratio))
             
             v = Q_model(x)[1, :]
-            x_bnd = x[:, (v .> -bnd_eps) .& (v .<= tol)]
+            min_v = affine_Q_interval(x)[1, :]
+            
+            bnd_index = ((v .> -bnd_eps) .& (v .<= tol)) .| ((min_v .> -bnd_eps) .& (min_v .<= tol))
+            x_bnd = x[:, bnd_index]
+
             bnd_ratio = bnd_ratio_avg * bnd_ratio + (1 - bnd_ratio_avg) * size(x_bnd, 2) / size(x, 2)
             bnd_ratio = clamp(bnd_ratio, min_bnd_ratio, max_bnd_ratio)
 
@@ -511,7 +515,7 @@ function finetune_Q(
         end
 
         with_logger(logger) do
-            @info "finetune" total_counterexample=length(buffer.stored) log_step_increment=0
+            @info "finetune" total_counterexample=length(buffer.stored)
             @info "finetune" skipped_update=skipped log_step_increment=0
             @info "finetune" verified_times=verified log_step_increment=0
             @info "finetune" con_update=con_update log_step_increment=0
