@@ -314,6 +314,7 @@ function finetune_Q(
 
     con_buffer = Buffer(capacity, length(x_low))
     inv_buffer = Buffer(capacity, length(x_low))
+    arg_con_buffer = Buffer(capacity, length(x_low))
     buffer = Buffer(capacity, length(x_low))
 
     
@@ -351,6 +352,7 @@ function finetune_Q(
     #             con_start_values=con_start_values, inv_start_values=inv_start_values)
     # exit()
     con_update = 0
+    arg_con_update = 0
     inv_update = 0
     verifying = false
     con_bnd_ratio = bnd_ratio
@@ -390,6 +392,8 @@ function finetune_Q(
             
             push!(con_buffer, x_pgd[:, con])
             push!(inv_buffer, x_pgd[:, inv])
+            push!(arg_con_buffer, x_pgd[:, _arg_con])
+            push!(arg_con_buffer, x_arg_pgd[:, arg_con])
             push!(buffer, x_pgd[:, ce])
             push!(buffer, x_arg_pgd[:, arg_con])
 
@@ -450,12 +454,14 @@ function finetune_Q(
                 else
                     con_loss = 0
                 end
+                
                 if n_arg_con > 0
                     # arg_con_loss = sum(-Q_model(x_arg_con)-affine_Q_interval(x_arg_con))
                     arg_con_loss = sum(-Q_model(x_arg_con))
                 else
                     arg_con_loss = 0
                 end
+
                 if n_inv > 0
                     inv_loss = sum(-Q_model(x_inv) + affine_Q_interval(vcat(f_model(x_inv), zeros(task.u_dim, size(x_inv, 2)))))
                 else
