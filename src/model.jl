@@ -49,6 +49,58 @@ function create_closed_loop_dynamics_model(
     )
 end
 
+
+function create_non_linear_dynamics_model(
+    f_model::Chain,
+    data::Dict{String, Array{Float32}},
+    x_low::Vector{Float32},
+    x_high::Vector{Float32},
+    u_dim::Int64,
+    x_dim::Int64,
+)
+    """
+    f_model: f([x u]) = dx
+    for non-linear dynamics, create f([x u]) = x'
+    return f([x u]) = x'
+    """
+    W_x = create_filter_matrix(1, x_dim, x_dim + u_dim)
+    b_x = zeros(x_dim)
+    filter_x = Dense(W_x, b_x)
+    W_u = create_filter_matrix(x_dim + 1, x_dim + u_dim, x_dim + u_dim)
+    u_b = zeros(u_dim)
+    filter_u = Dense(W_u, u_b)
+
+    x_dim = length(x_low)
+    return Chain(
+        Parallel(+,
+            filter_x,
+            Chain(
+                Parallel(+,
+                    Chain(
+                        filter_x,
+                        Dense(diagm(1 ./ data["x_std"]), -data["x_mean"] ./ data["x_std"]),
+                        Dense(vcat(Matrix{Float32}(I(x_dim)), zeros(Float32, u_dim, x_dim))),
+                    ),
+                    Chain(
+                        filter_u,
+                        Dense(diagm(1 ./ data["u_std"]), -data["u_mean"] ./ data["u_std"]),
+                        Dense(vcat(zeros(Float32, x_dim, u_dim), Matrix{Float32}(I(u_dim)))),
+                    ),
+                ),
+                f_model,
+                Dense(diagm(data["dx_std"]), data["dx_mean"]),
+            ),
+        ),
+        # max(x, x_low) = relu(x - x_low) + x_low
+        Dense(Matrix{Float32}(I(x_dim)), -x_low, relu),
+        Dense(Matrix{Float32}(I(x_dim)), x_low),
+        # min(x, x_high) = -max(-x, -x_high) = -relu(-x + x_high) + x_high
+        Dense(-Matrix{Float32}(I(x_dim)), x_high, relu),
+        Dense(-Matrix{Float32}(I(x_dim)), x_high),
+    )
+    return model
+end
+
 function create_value_constraint_model(V_model::Any, h_model::Any)::Chain
     return Chain(Parallel(+,
         Chain(V_model, Dense(Float32[1; 0;;])),

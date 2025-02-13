@@ -234,6 +234,7 @@ function boundary_guided_search_Q(
     bound_guide::Bool = true,
     direct_discount::Float64 = 0.5,
     tol::Float64 = 1e-4,
+    mode::String = "uni",
 )::Matrix{Float32}
 """
 1. change the input of h_model and f_pi_model to x[:task.x_dim, :]
@@ -266,9 +267,26 @@ function boundary_guided_search_Q(
         con_g = Flux.gradient(x -> sum(h_model(x[1:task.x_dim, :])), x_pgd[:, 1:div(size(x_pgd, 2), 2)])[1]
         
         # inv_g = Flux.gradient(x -> sum(Q_interval(vcat(f_pi_model(x[1:task.x_dim,:]), zeros(task.u_dim, size(x, 2))))), x_pgd[:, size(con_g, 2) + 1:end])[1]
-        # inv_g = Flux.gradient(x -> sum(Q_interval(vcat(f_model(x), zeros(task.u_dim, size(x, 2))))), x_pgd[:, size(con_g, 2) + 1:end])[1]
-        inv_g = Flux.gradient(x -> sum(Q_model(vcat(f_model(x), zeros(task.u_dim, size(x, 2))))), x_pgd[:, size(con_g, 2) + 1:end])[1]
-        g = hcat(con_g, inv_g) + Float32(pgd_beta) * m[:, pgd]
+        inv_g = Flux.gradient(x -> sum(Q_interval(vcat(f_model(x), zeros(task.u_dim, size(x, 2))))), x_pgd[:, size(con_g, 2) + 1:end])[1]
+        # inv_g = Flux.gradient(x -> sum(Q_model(vcat(f_model(x), zeros(task.u_dim, size(x, 2))))), x_pgd[:, size(con_g, 2) + 1:end])[1]
+        
+        if mode == "uni"
+            con_g = Flux.gradient(x -> sum(h_model(x[1:task.x_dim, :])), x_pgd[:, 1:div(size(x_pgd, 2), 2)])[1]
+        
+            # inv_g = Flux.gradient(x -> sum(Q_interval(vcat(f_pi_model(x[1:task.x_dim,:]), zeros(task.u_dim, size(x, 2))))), x_pgd[:, size(con_g, 2) + 1:end])[1]
+            inv_g = Flux.gradient(x -> sum(Q_interval(vcat(f_model(x), zeros(task.u_dim, size(x, 2))))), x_pgd[:, size(con_g, 2) + 1:end])[1]
+            # inv_g = Flux.gradient(x -> sum(Q_model(vcat(f_model(x), zeros(task.u_dim, size(x, 2))))), x_pgd[:, size(con_g, 2) + 1:end])[1]
+            g = hcat(con_g, inv_g) + Float32(pgd_beta) * m[:, pgd]
+        elseif mode == "con"
+            con_g = Flux.gradient(x -> sum(h_model(x[1:task.x_dim, :])), x_pgd)[1]
+            g = con_g + Float32(pgd_beta) * m[:, pgd]
+        elseif mode == "inv"
+            # inv_g = Flux.gradient(x -> sum(Q_interval(vcat(f_pi_model(x[1:task.x_dim,:]), zeros(task.u_dim, size(x, 2))))), x_pgd[:, size(con_g, 2) + 1:end])[1]
+            inv_g = Flux.gradient(x -> sum(Q_interval(vcat(f_model(x), zeros(task.u_dim, size(x, 2))))), x_pgd)[1]
+            # inv_g = Flux.gradient(x -> sum(Q_model(vcat(f_model(x), zeros(task.u_dim, size(x, 2))))), x_pgd[:, size(con_g, 2) + 1:end])[1]
+            g = inv_g + Float32(pgd_beta) * m[:, pgd]
+        end
+
         g ./= sqrt.(sum(g .^ 2, dims=1))
 
         v_g = Flux.gradient(x -> sum(Q_model(x)), x_pgd)[1]
@@ -347,7 +365,9 @@ function filter_counterexample_Q(
     # con = ((v .<= tol) .& (h .> -tol))
     # inv = (v .<= tol) .& (min_v_prime .> -tol) .& (.~con)
     
-    con = ((v .<= tol) .& (h .> -tol)) .| ((min_v .<= tol) .& (h .> -tol))
+    # con = ((v .<= tol) .& (h .> -tol)) .| ((min_v .<= tol) .& (h .> -tol))
+    con = ((v .<= tol) .& (h .> -tol))
+    arg_con = ((min_v .<= tol) .& (h .> -tol))
     inv = (v .<= tol) .& (min_v_prime .> -tol) .& (.~con)
 
     #TODO: Double posi-boundary
@@ -357,5 +377,5 @@ function filter_counterexample_Q(
     # con = (v .<= -tol) .& (h .> 0.0)
     # inv = (v .<= -tol) .& (min_v_prime .> 0.0) .& (.~con)
 
-    return con, inv
+    return con, arg_con, inv
 end

@@ -79,8 +79,6 @@ function pretrain_Q(
     x_high::Vector{Float32};
     u_low::Vector{Float32},
     u_high::Vector{Float32},
-    # x_a_low::Vector{Float32},
-    # x_a_high::Vector{Float32},
     task::Any,
     gamma::Float64 = 0.9,
     lr::Float64 = 3e-4,
