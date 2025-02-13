@@ -356,7 +356,7 @@ function finetune_Q(
     con_bnd_ratio = bnd_ratio
     inv_bnd_ratio = bnd_ratio
     for i in ProgressBar(1:max_iter)
-        if ((length(con_buffer.stored) + length(inv_buffer.stored)) < search_stop)
+        if (buffer.stored < search_stop)
             x = uniform(x_low, x_high, round(Int64, search_size / bnd_ratio))
             
             v = Q_model(x)[1, :]
@@ -384,6 +384,7 @@ function finetune_Q(
                 @info "finetune" boundary_state_ratio=bnd_ratio log_step_increment=0
                 @info "finetune" searched_constraint_counterexample=sum(con) log_step_increment=0
                 @info "finetune" searched_invariance_counterexample=sum(inv) log_step_increment=0
+                @info "finetune" searched_arg_constraint_counterexample=sum(arg_con) log_step_increment=0
             end
         end
 
@@ -450,7 +451,7 @@ function finetune_Q(
             c[.~con .& .~inv .& .~arg_con] .+= 1
             
             push_idx = c .< replay
-            push!(buffer, x[:, push_idx], c[push_idx])
+            # push!(buffer, x[:, push_idx], c[push_idx])
 
             n_con, n_arg_con, n_inv = size(x_con, 2), size(x_arg_con, 2), size(x_inv, 2)
 
@@ -487,7 +488,7 @@ function finetune_Q(
                     con_loss = 0
                 end
                 if n_arg_con > 0
-                    arg_con_loss = sum(-affine_Q_interval(x_arg_con))
+                    arg_con_loss = sum(-Q_model(x_arg_con)-affine_Q_interval(x_arg_con))
                 else
                     arg_con_loss = 0
                 end
@@ -528,6 +529,8 @@ function finetune_Q(
                 @info "finetune" sample_size=n log_step_increment=0
                 @info "finetune" value_loss=loss log_step_increment=0
                 @info "finetune" sampled_constraint_counterexample=n_con log_step_increment=0
+                @info "finetune" sampled_arg_constraint_counterexample=n_arg_con log_step_increment=0
+                @info "finetune" sampled_invariance_counterexample=n_inv log_step_increment=0
                 
                 
                 if !isnothing(reg_method)
@@ -735,7 +738,7 @@ function finetune_Q(
         end
 
         with_logger(logger) do
-            @info "finetune" total_counterexample=length(con_buffer.stored) + length(inv_buffer.stored)
+            @info "finetune" total_counterexample=length(buffer.stored) log_step_increment=0
             @info "finetune" skipped_update=skipped log_step_increment=0
             @info "finetune" verified_times=verified log_step_increment=0
             @info "finetune" con_update=con_update log_step_increment=0
