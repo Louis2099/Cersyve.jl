@@ -373,8 +373,9 @@ function finetune_Q(
             con, arg_con, inv = filter_counterexample_Q(task, x_pgd, h_model, Q_model, affine_Q_interval, f_pi_model; f_model = f_model, tol=tol)
             
              
-            ce = con .| inv .| arg_con
-            
+            # ce = con .| inv .| arg_con
+            ce = con .| inv
+
             push!(con_buffer, x_pgd[:, con])
             push!(inv_buffer, x_pgd[:, inv])
             push!(buffer, x_pgd[:, ce])
@@ -446,8 +447,8 @@ function finetune_Q(
             x, c = pop!(buffer, n)
             con, arg_con, inv = filter_counterexample_Q(task, x, h_model, Q_model, affine_Q_interval, f_pi_model; f_model = f_model, tol=tol)
             x_con, x_arg_con, x_inv = x[:, con], x[:, arg_con], x[:, inv]
-            c[con .| inv .| arg_con] .= 0
-            c[.~con .& .~inv .& .~arg_con] .+= 1
+            c[con .| inv] .= 0
+            c[.~con .& .~inv] .+= 1
             
             push_idx = c .< replay
             push!(buffer, x[:, push_idx], c[push_idx])
@@ -501,8 +502,8 @@ function finetune_Q(
                 else
                     reg_loss = 0
                 end
-                loss = (con_loss + arg_con_loss + inv_loss) / max(n_con + n_arg_con + n_inv, 1) + reg_coef * reg_loss
-                # loss = (con_loss + inv_loss) / max(n_con + n_inv, 1) + reg_coef * reg_loss
+                # loss = (con_loss + arg_con_loss + inv_loss) / max(n_con + n_arg_con + n_inv, 1) + reg_coef * reg_loss
+                loss = (con_loss + inv_loss) / max(n_con + n_inv, 1) + reg_coef * reg_loss
                 return loss
             end
             
@@ -528,7 +529,8 @@ function finetune_Q(
                 @info "finetune" sample_size=n log_step_increment=0
                 @info "finetune" value_loss=loss log_step_increment=0
                 @info "finetune" sampled_constraint_counterexample=n_con log_step_increment=0
-                
+                @info "finetune" sampled_invariance_counterexample=n_inv log_step_increment=0
+                @info "finetune" sampled_arg_constraint_counterexample=n_arg_con log_step_increment=0
                 
                 if !isnothing(reg_method)
                     @info "finetune" regularization_state=n_reg log_step_increment=0
