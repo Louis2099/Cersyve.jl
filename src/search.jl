@@ -353,7 +353,7 @@ function filter_counterexample_Q(
     f_pi_model::Any;
     f_model::Any,
     tol::Float64 = 1e-4,
-)::Tuple{BitVector, BitVector}
+)::Tuple{BitVector, BitVector, BitVector}
     h = h_model(xu[1:task.x_dim,:])[1, :]
     v = Q_model(xu)[1, :]
     h_prime = h_model(f_model(xu))[1, :]

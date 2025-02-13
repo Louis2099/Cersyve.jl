@@ -370,8 +370,10 @@ function finetune_Q(
                     length_discount=length_discount, bound_guide=true, direct_discount=direct_discount,
                     tol=tol, mode="uni")
             end
-            con, arg_con,inv = filter_counterexample_Q(task, x_pgd, h_model, Q_model, affine_Q_interval, f_pi_model; f_model = f_model, tol=tol)
-            ce = con .| inv
+            con, arg_con, inv = filter_counterexample_Q(task, x_pgd, h_model, Q_model, affine_Q_interval, f_pi_model; f_model = f_model, tol=tol)
+            
+             
+            ce = con .| inv .| arg_con
 
             push!(con_buffer, x_pgd[:, con])
             push!(inv_buffer, x_pgd[:, inv])
@@ -485,7 +487,7 @@ function finetune_Q(
                     con_loss = 0
                 end
                 if n_arg_con > 0
-                    arg_con_loss = -affine_Q_interval(x_arg_con)
+                    arg_con_loss = sum(-affine_Q_interval(x_arg_con))
                 else
                     arg_con_loss = 0
                 end
