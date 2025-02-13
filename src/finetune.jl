@@ -362,8 +362,10 @@ function finetune_Q(
             v = Q_model(x)[1, :]
             min_v = affine_Q_interval(x)[1, :]
             
-            bnd_index = ((v .> -bnd_eps) .& (v .<= tol)) .| ((min_v .> -bnd_eps) .& (min_v .<= tol))
-            x_bnd = x[:, bnd_index]
+            inv_bnd_index = ((v .> -bnd_eps) .& (v .<= tol))
+            arg_bnd_index = ((min_v .> -bnd_eps) .& (min_v .<= tol))
+            x_bnd = x[:, inv_bnd_index]
+            x_arg_bnd = x[:, arg_bnd_index]
 
             bnd_ratio = bnd_ratio_avg * bnd_ratio + (1 - bnd_ratio_avg) * size(x_bnd, 2) / size(x, 2)
             bnd_ratio = clamp(bnd_ratio, min_bnd_ratio, max_bnd_ratio)
@@ -373,15 +375,23 @@ function finetune_Q(
                 f_model = f_model, pgd_step=pgd_step, pgd_eps=pgd_eps, backtrack_step=backtrack_step,
                     length_discount=length_discount, bound_guide=true, direct_discount=direct_discount,
                     tol=tol, mode="uni")
+                
+                x_arg_pgd = boundary_guided_search_Q(task, x_arg_bnd, x_low, x_high, h_model, Q_model, affine_Q_interval, f_pi_model;
+                f_model = f_model, pgd_step=pgd_step, pgd_eps=pgd_eps, backtrack_step=backtrack_step,
+                    length_discount=length_discount, bound_guide=true, direct_discount=direct_discount,
+                    tol=tol, mode="con")
             end
-            con, arg_con, inv = filter_counterexample_Q(task, x_pgd, h_model, Q_model, affine_Q_interval, f_pi_model; f_model = f_model, tol=tol)
-            
+
+        
+            con, _arg_con, inv = filter_counterexample_Q(task, x_pgd, h_model, Q_model, affine_Q_interval, f_pi_model; f_model = f_model, tol=tol)
+            _con, arg_con, _inv = filter_counterexample_Q(task, x_arg_pgd, h_model, Q_model, affine_Q_interval, f_pi_model; f_model = f_model, tol=tol)
              
-            ce = con .| inv .| arg_con
+            ce = con .| inv .| _arg_con
             
             push!(con_buffer, x_pgd[:, con])
             push!(inv_buffer, x_pgd[:, inv])
             push!(buffer, x_pgd[:, ce])
+            push!(buffer, x_arg_pgd[:, arg_con])
 
             with_logger(logger) do
                 @info "finetune" searched_boundary_states=size(x_bnd, 2) log_step_increment=0
@@ -404,7 +414,7 @@ function finetune_Q(
             c[.~con .& .~inv .& .~arg_con] .+= 1
             
             push_idx = c .< replay
-            # push!(buffer, x[:, push_idx], c[push_idx])
+            push!(buffer, x[:, push_idx], c[push_idx])
 
             n_con, n_arg_con, n_inv = size(x_con, 2), size(x_arg_con, 2), size(x_inv, 2)
 
