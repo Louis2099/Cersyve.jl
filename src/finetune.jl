@@ -357,6 +357,8 @@ function finetune_Q(
     verifying = false
     con_bnd_ratio = bnd_ratio
     inv_bnd_ratio = bnd_ratio
+    finetune_order = 0
+    # 0, 1, 2: con, inv, arg_con
     for i in ProgressBar(1:max_iter)
         if (length(buffer.stored) < search_stop)
             x = uniform(x_low, x_high, round(Int64, search_size / bnd_ratio))
@@ -407,20 +409,54 @@ function finetune_Q(
         end
 
         
-        if length(buffer.stored) > 0
-            skipped = 0
-            con_update += 1
-            n = min(sample_size, length(buffer.stored))
-            x, c = pop!(buffer, n)
-            con, arg_con, inv = filter_counterexample_Q(task, x, h_model, Q_model, affine_Q_interval, f_pi_model; f_model = f_model, tol=tol)
-            x_con, x_arg_con, x_inv = x[:, con], x[:, arg_con], x[:, inv]
-            c[con .| inv .| arg_con] .= 0
-            c[.~con .& .~inv .& .~arg_con] .+= 1
-            
-            push_idx = c .< replay
-            push!(buffer, x[:, push_idx], c[push_idx])
+        if (length(arg_con_buffer.stored) + length(inv_buffer.stored) + length(con_buffer.stored)) > 0
+            if finetune_order%3 == 0
+                finetune_order += 1
+                if length(con_buffer.stored) <= 0
+                    continue
+                end
+                skipped = 0
+                con_update += 1
+                n = min(sample_size, length(con_buffer.stored))
+                x, c = pop!(con_buffer, n)
+                con, arg_con, inv = filter_counterexample_Q(task, x, h_model, Q_model, affine_Q_interval, f_pi_model; f_model = f_model, tol=tol)
+                x_con = x[:, con]
+                n_arg_con = 0
+                n_inv = 0
+                c[con] .= 0
+                c[.~con] .+= 1
+                
+                push_idx = c .< replay
+                push!(buffer, x[:, push_idx], c[push_idx])
 
-            n_con, n_arg_con, n_inv = size(x_con, 2), size(x_arg_con, 2), size(x_inv, 2)
+                n_con = size(x_con, 2)
+            elseif finetune_order%3 == 1
+                finetune_order += 1
+                if length(inv_buffer.stored) <= 0
+                    continue
+                end
+                skipped = 0
+                inv_update += 1
+                n = min(sample_size, length(inv_buffer.stored))
+                x, c = pop!(inv_buffer, n)
+                con, arg_con, inv = filter_counterexample_Q(task, x, h_model, Q_model, affine_Q_interval, f_pi_model; f_model = f_model, tol=tol)
+                x_inv = x[:, inv]
+                n_con = 0
+                n_arg_con = 0
+                n_inv = size(x_inv, 2)
+            elseif finetune_order%3 == 2
+                finetune_order += 1
+                if length(arg_con_buffer.stored) <= 0
+                    continue
+                end
+                skipped = 0
+                arg_con_update += 1
+                n = min(sample_size, length(arg_con_buffer.stored))
+                x, c = pop!(arg_con_buffer, n)
+                con, arg_con, inv = filter_counterexample_Q(task, x, h_model, Q_model, affine_Q_interval, f_pi_model; f_model = f_model, tol=tol)
+                x_arg_con = x[:, arg_con]
+                n_con = 0
+            end
 
             if !isnothing(reg_method) && (n_con + n_arg_con + n_inv > 0) && (
                 isnothing(esr_max_con) || (n_con + n_arg_con + n_inv < esr_max_con))
@@ -534,8 +570,15 @@ function finetune_Q(
             @info "finetune" total_counterexample=length(buffer.stored)
             @info "finetune" skipped_update=skipped log_step_increment=0
             @info "finetune" verified_times=verified log_step_increment=0
-            @info "finetune" con_update=con_update log_step_increment=0
-            @info "finetune" inv_update=inv_update log_step_increment=0
+            if finetune_order%3 == 0
+                @info "finetune" con_update=con_update log_step_increment=0
+            end
+            if finetune_order%3 == 1
+                @info "finetune" inv_update=inv_update log_step_increment=0
+            end
+            if finetune_order%3 == 2
+                @info "finetune" arg_con_update=arg_con_update log_step_increment=0
+            end
         end
 
         if i % eval_every == 0
