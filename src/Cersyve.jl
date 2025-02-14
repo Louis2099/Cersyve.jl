@@ -59,6 +59,7 @@ export uniform
 export minimize_Q
 export create_non_linear_dynamics_model
 
+
 include("2D_double_integrator.jl")
 include("double_integrator.jl")
 include("pendulum.jl")

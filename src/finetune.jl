@@ -383,6 +383,7 @@ function finetune_Q(
             push!(con_buffer, x_pgd[:, con])
             push!(inv_buffer, x_pgd[:, inv])
             push!(buffer, x_pgd[:, ce])
+            
 
             with_logger(logger) do
                 @info "finetune" searched_boundary_states=size(x_bnd, 2) log_step_increment=0
@@ -391,8 +392,42 @@ function finetune_Q(
                 @info "finetune" searched_invariance_counterexample=sum(inv) log_step_increment=0
                 @info "finetune" searched_arg_constraint_counterexample=sum(arg_con) log_step_increment=0
             end
-        end
+        elseif ((n_con + n_arg_con) < n_inv)
+            x = uniform(x_low, x_high, round(Int64, search_size / bnd_ratio))
+            
+            v = Q_model(x)[1, :]
+            min_v = affine_Q_interval(x)[1, :]
+            
+            bnd_index = ((v .> -bnd_eps) .& (v .<= tol)) .| ((min_v .> -bnd_eps/10) .& (min_v .<= tol))
+            
+            x_bnd = x[:, bnd_index]
 
+            bnd_ratio = bnd_ratio_avg * bnd_ratio + (1 - bnd_ratio_avg) * size(x_bnd, 2) / size(x, 2)
+            bnd_ratio = clamp(bnd_ratio, min_bnd_ratio, max_bnd_ratio)
+
+            if search_method == "BGB"
+                x_pgd = boundary_guided_search_Q(task, x_bnd, x_low, x_high, h_model, Q_model, affine_Q_interval, f_pi_model;
+                f_model = f_model, pgd_step=pgd_step, pgd_eps=pgd_eps, backtrack_step=backtrack_step,
+                    length_discount=length_discount, bound_guide=true, direct_discount=direct_discount,
+                    tol=tol, mode="con")
+            end
+            con, arg_con, inv = filter_counterexample_Q(task, x_pgd, h_model, Q_model, affine_Q_interval, f_pi_model; f_model = f_model, tol=tol)
+            
+             
+            ce = con .| inv .| arg_con
+            
+            push!(con_buffer, x_pgd[:, con])
+            push!(inv_buffer, x_pgd[:, inv])
+            push!(buffer, x_pgd[:, ce])
+            
+
+            with_logger(logger) do
+                @info "finetune" searched_boundary_states=size(x_bnd, 2) log_step_increment=0
+                @info "finetune" boundary_state_ratio=bnd_ratio log_step_increment=0
+                @info "finetune" searched_constraint_counterexample=sum(con) log_step_increment=0
+                @info "finetune" searched_arg_constraint_counterexample=sum(arg_con) log_step_increment=0
+            end
+        end
         
         if length(buffer.stored) > 0
             skipped = 0
@@ -405,7 +440,9 @@ function finetune_Q(
             c[.~con .& .~inv .& .~arg_con] .+= 1
             
             push_idx = c .< replay
-            # push!(buffer, x[:, push_idx], c[push_idx])
+            push!(buffer, x[:, push_idx], c[push_idx])
+
+            
 
             n_con, n_arg_con, n_inv = size(x_con, 2), size(x_arg_con, 2), size(x_inv, 2)
 

@@ -367,7 +367,7 @@ function filter_counterexample_Q(
     
     # con = ((v .<= tol) .& (h .> -tol)) .| ((min_v .<= tol) .& (h .> -tol))
     con = ((v .<= tol) .& (h .> -tol))
-    arg_con = ((min_v .<= tol) .& (h .> -tol))
+    arg_con = ((min_v .<= tol) .& (h .> -tol)).& (.~arg_con)
     # arg_con = ((min_v .<= tol) .& (h .> -tol)) .& (.~con)
     inv = (v .<= tol) .& (min_v_prime .> -tol) .& (.~con) .& (.~arg_con)
     # con = ((v .<= tol) .& (h .> -tol))
