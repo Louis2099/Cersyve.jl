@@ -489,7 +489,8 @@ function finetune_Q(
                 end
                 if n_inv > 0
                     # inv_loss = sum(-Q_model(x_inv) + affine_Q_interval(vcat(f_model(x_inv), zeros(task.u_dim, size(x_inv, 2)))))
-                    inv_loss = sum(-Q_model(x_inv))
+                    inv_loss = sum(-Q_model(x_inv) + Q_model(vcat(f_model(x_inv), zeros(task.u_dim, size(x_inv, 2)))))
+                    # inv_loss = sum(-Q_model(x_inv))
                 else
                     inv_loss = 0
                 end
