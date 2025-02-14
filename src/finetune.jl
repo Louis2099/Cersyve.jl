@@ -395,41 +395,41 @@ function finetune_Q(
                 @info "finetune" searched_invariance_counterexample=sum(inv) log_step_increment=0
                 @info "finetune" searched_arg_constraint_counterexample=sum(arg_con) log_step_increment=0
             end
-        elseif ((n_con + n_arg_con) < n_inv)
-            x = uniform(x_low, x_high, round(Int64, search_size / bnd_ratio))
+        # elseif ((n_con + n_arg_con) < n_inv)
+        #     x = uniform(x_low, x_high, round(Int64, search_size / bnd_ratio))
             
-            v = Q_model(x)[1, :]
-            min_v = affine_Q_interval(x)[1, :]
+        #     v = Q_model(x)[1, :]
+        #     min_v = affine_Q_interval(x)[1, :]
             
-            bnd_index = ((v .> -bnd_eps) .& (v .<= tol)) .| ((min_v .> -bnd_eps/10) .& (min_v .<= tol))
+        #     bnd_index = ((v .> -bnd_eps) .& (v .<= tol)) .| ((min_v .> -bnd_eps/10) .& (min_v .<= tol))
             
-            x_bnd = x[:, bnd_index]
+        #     x_bnd = x[:, bnd_index]
 
-            bnd_ratio = bnd_ratio_avg * bnd_ratio + (1 - bnd_ratio_avg) * size(x_bnd, 2) / size(x, 2)
-            bnd_ratio = clamp(bnd_ratio, min_bnd_ratio, max_bnd_ratio)
+        #     bnd_ratio = bnd_ratio_avg * bnd_ratio + (1 - bnd_ratio_avg) * size(x_bnd, 2) / size(x, 2)
+        #     bnd_ratio = clamp(bnd_ratio, min_bnd_ratio, max_bnd_ratio)
 
-            if search_method == "BGB"
-                x_pgd = boundary_guided_search_Q(task, x_bnd, x_low, x_high, h_model, Q_model, affine_Q_interval, f_pi_model;
-                f_model = f_model, pgd_step=pgd_step, pgd_eps=pgd_eps, backtrack_step=backtrack_step,
-                    length_discount=length_discount, bound_guide=true, direct_discount=direct_discount,
-                    tol=tol, mode="con")
-            end
-            con, arg_con, inv = filter_counterexample_Q(task, x_pgd, h_model, Q_model, affine_Q_interval, f_pi_model; f_model = f_model, tol=tol)
+        #     if search_method == "BGB"
+        #         x_pgd = boundary_guided_search_Q(task, x_bnd, x_low, x_high, h_model, Q_model, affine_Q_interval, f_pi_model;
+        #         f_model = f_model, pgd_step=pgd_step, pgd_eps=pgd_eps, backtrack_step=backtrack_step,
+        #             length_discount=length_discount, bound_guide=true, direct_discount=direct_discount,
+        #             tol=tol, mode="con")
+        #     end
+        #     con, arg_con, inv = filter_counterexample_Q(task, x_pgd, h_model, Q_model, affine_Q_interval, f_pi_model; f_model = f_model, tol=tol)
             
              
-            ce = con .| inv .| arg_con
+        #     ce = con .| inv .| arg_con
             
-            push!(con_buffer, x_pgd[:, con])
-            push!(inv_buffer, x_pgd[:, inv])
-            push!(buffer, x_pgd[:, ce])
+        #     push!(con_buffer, x_pgd[:, con])
+        #     push!(inv_buffer, x_pgd[:, inv])
+        #     push!(buffer, x_pgd[:, ce])
             
 
-            with_logger(logger) do
-                @info "finetune" searched_boundary_states=size(x_bnd, 2) log_step_increment=0
-                @info "finetune" boundary_state_ratio=bnd_ratio log_step_increment=0
-                @info "finetune" searched_constraint_counterexample=sum(con) log_step_increment=0
-                @info "finetune" searched_arg_constraint_counterexample=sum(arg_con) log_step_increment=0
-            end
+        #     with_logger(logger) do
+        #         @info "finetune" searched_boundary_states=size(x_bnd, 2) log_step_increment=0
+        #         @info "finetune" boundary_state_ratio=bnd_ratio log_step_increment=0
+        #         @info "finetune" searched_constraint_counterexample=sum(con) log_step_increment=0
+        #         @info "finetune" searched_arg_constraint_counterexample=sum(arg_con) log_step_increment=0
+        #     end
         end
         
         if length(buffer.stored) > 0
@@ -466,6 +466,20 @@ function finetune_Q(
 
                     x_reg = x_reg[:, entering]
                     n_reg = size(x_reg, 2)
+
+                    # anchor regularization
+                    x_anchor = uniform(x_low, x_high, 10*search_size)
+                    x_anchor[task.x_dim+1:end, :] .= 0
+
+                    h_anchor = h_model(x_anchor[1:task.x_dim, :])[1, :]
+                    v_anchor = Q_model(x_anchor)[1, :]
+                    min_v_anchor = affine_Q_interval(x_anchor)[1, :]
+
+                    anchor_index = ((h_anchor .> 0.0) .& (v_anchor .<= 0.0)) .| ((h_anchor .> 0.0) .& (min_v_anchor .<= 0.0))
+
+                    x_anchor = x_anchor[:, anchor_index]
+                    n_anchor = size(x_anchor, 2)
+
                 elseif reg_method == "RSR"
                     # random state regularization
                     x_reg = uniform(x_low, x_high, search_size)
@@ -499,7 +513,12 @@ function finetune_Q(
                 else
                     reg_loss = 0
                 end
-                loss = (con_loss + arg_con_loss + inv_loss) / max(n_con + n_arg_con + n_inv, 1) + reg_coef * reg_loss
+                if n_anchor > 0
+                    anchor_loss = sum(h_model(x_anchor[1:task.x_dim, :])-Q_model(x_anchor))
+                else
+                    anchor_loss = 0
+                end
+                loss = (con_loss + arg_con_loss + inv_loss) / max(n_con + n_arg_con + n_inv, 1) + reg_coef * reg_loss + reg_coef * anchor_loss
                 # loss = (con_loss + inv_loss) / max(n_con + n_inv, 1) + reg_coef * reg_loss
                 return loss
             end
@@ -520,6 +539,7 @@ function finetune_Q(
                 
                 if !isnothing(reg_method)
                     @info "finetune" regularization_state=n_reg log_step_increment=0
+                    @info "finetune" anchor_state=n_anchor log_step_increment=0
                 end
             end
         else
