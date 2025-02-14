@@ -362,7 +362,8 @@ function finetune_Q(
             v = Q_model(x)[1, :]
             min_v = affine_Q_interval(x)[1, :]
             
-            bnd_index = ((v .> -bnd_eps) .& (v .<= tol)) .| ((min_v .> -bnd_eps) .& (min_v .<= tol))
+            bnd_index = ((v .> -bnd_eps) .& (v .<= tol)) .| ((min_v .> -bnd_eps/10) .& (min_v .<= tol))
+            
             x_bnd = x[:, bnd_index]
 
             bnd_ratio = bnd_ratio_avg * bnd_ratio + (1 - bnd_ratio_avg) * size(x_bnd, 2) / size(x, 2)
@@ -447,7 +448,8 @@ function finetune_Q(
                     arg_con_loss = 0
                 end
                 if n_inv > 0
-                    inv_loss = sum(-Q_model(x_inv) + affine_Q_interval(vcat(f_model(x_inv), zeros(task.u_dim, size(x_inv, 2)))))
+                    # inv_loss = sum(-Q_model(x_inv) + affine_Q_interval(vcat(f_model(x_inv), zeros(task.u_dim, size(x_inv, 2)))))
+                    inv_loss = sum(-Q_model(x_inv))
                 else
                     inv_loss = 0
                 end
