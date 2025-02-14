@@ -333,9 +333,9 @@ function finetune_Q(
     # Optimisers.freeze!(opt_state_all.layers[1].layers[2].layers[1])
     Optimisers.freeze!(opt_state_all.layers[2])
 
-    Optimisers.freeze!(opt_state_u.layers[1].layers[1].layers[1])
+    Optimisers.freeze!(opt_state_con.layers[1].layers[1].layers[1])
     # Optimisers.freeze!(opt_state_con.layers[1].layers[1])
-    # Optimisers.freeze!(opt_state_u.layers[1].layers[2].layers[1])
+    # Optimisers.freeze!(opt_state_con.layers[1].layers[2].layers[1])
     Optimisers.freeze!(opt_state_con.layers[2])
 
     Optimisers.freeze!(opt_state_arg_con.layers[1].layers[1].layers[1])
