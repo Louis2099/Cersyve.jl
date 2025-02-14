@@ -414,6 +414,51 @@ function finetune_Q(
                 @info "finetune" searched_invariance_counterexample=sum(inv) log_step_increment=0
                 @info "finetune" searched_arg_constraint_counterexample=sum(arg_con) log_step_increment=0
             end
+        elseif ((length(con_buffer.stored) + length(arg_con_buffer.stored)) < length(inv_buffer.stored)) &
+            (i%200 == 0)
+            x = uniform(x_low, x_high, round(Int64, search_size / bnd_ratio))
+            
+            v = Q_model(x)[1, :]
+            min_v = affine_Q_interval(x)[1, :]
+            
+            inv_bnd_index = ((v .> -bnd_eps) .& (v .<= tol))
+            arg_bnd_index = ((min_v .> -bnd_eps) .& (min_v .<= tol))
+            x_bnd = x[:, inv_bnd_index]
+            x_arg_bnd = x[:, arg_bnd_index]
+
+            bnd_ratio = bnd_ratio_avg * bnd_ratio + (1 - bnd_ratio_avg) * size(x_bnd, 2) / size(x, 2)
+            bnd_ratio = clamp(bnd_ratio, min_bnd_ratio, max_bnd_ratio)
+
+            if search_method == "BGB"
+                x_pgd = boundary_guided_search_Q(task, x_bnd, x_low, x_high, h_model, Q_model, affine_Q_interval, f_pi_model;
+                f_model = f_model, pgd_step=pgd_step, pgd_eps=pgd_eps, backtrack_step=backtrack_step,
+                    length_discount=length_discount, bound_guide=true, direct_discount=direct_discount,
+                    tol=tol, mode="con")
+
+                x_arg_pgd = boundary_guided_search_Q(task, x_arg_bnd, x_low, x_high, h_model, Q_model, affine_Q_interval, f_pi_model;
+                f_model = f_model, pgd_step=pgd_step, pgd_eps=pgd_eps, backtrack_step=backtrack_step,
+                    length_discount=length_discount, bound_guide=true, direct_discount=direct_discount,
+                    tol=tol, mode="con")
+            end
+
+        
+            con, _arg_con, inv = filter_counterexample_Q(task, x_pgd, h_model, Q_model, affine_Q_interval, f_pi_model; f_model = f_model, tol=tol)
+            _con, arg_con, _inv = filter_counterexample_Q(task, x_arg_pgd, h_model, Q_model, affine_Q_interval, f_pi_model; f_model = f_model, tol=tol)
+             
+            ce = con .| _arg_con
+            
+            push!(con_buffer, x_pgd[:, con])
+            push!(arg_con_buffer, x_pgd[:, _arg_con])
+            push!(arg_con_buffer, x_arg_pgd[:, arg_con])
+            push!(buffer, x_pgd[:, ce])
+            push!(buffer, x_arg_pgd[:, arg_con])
+
+            with_logger(logger) do
+                @info "finetune" searched_boundary_states=size(x_bnd, 2) log_step_increment=0
+                @info "finetune" boundary_state_ratio=bnd_ratio log_step_increment=0
+                @info "finetune" searched_constraint_counterexample=sum(con) log_step_increment=0
+                @info "finetune" searched_arg_constraint_counterexample=sum(arg_con) log_step_increment=0
+            end
         end
 
         if length(con_buffer.stored) > 0
