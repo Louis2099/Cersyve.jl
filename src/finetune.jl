@@ -415,7 +415,7 @@ function finetune_Q(
                 @info "finetune" searched_arg_constraint_counterexample=sum(arg_con) log_step_increment=0
             end
         elseif ((length(con_buffer.stored) + length(arg_con_buffer.stored)) < length(inv_buffer.stored)) &
-            (i%200 == 0)
+            (i%10 == 0)
             x = uniform(x_low, x_high, round(Int64, search_size / bnd_ratio))
             
             v = Q_model(x)[1, :]
