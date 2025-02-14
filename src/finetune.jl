@@ -355,6 +355,9 @@ function finetune_Q(
     verifying = false
     con_bnd_ratio = bnd_ratio
     inv_bnd_ratio = bnd_ratio
+    n_con = 0
+    n_arg_con = 0
+    n_inv = 0
     for i in ProgressBar(1:max_iter)
         if (length(buffer.stored) < search_stop)
             x = uniform(x_low, x_high, round(Int64, search_size / bnd_ratio))
