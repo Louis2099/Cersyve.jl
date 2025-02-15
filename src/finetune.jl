@@ -380,20 +380,18 @@ function finetune_Q(
             end
         end
         
-        if length(buffer.stored) > 0
+        if length(con_buffer.stored) > 0
             skipped = 0
             con_update += 1
-            n = min(sample_size, length(buffer.stored))
-            x, c = pop!(buffer, n)
+            n = min(sample_size, length(con_buffer.stored))
+            x, c = pop!(con_buffer, n)
             con, arg_con, inv = filter_counterexample_Q(task, x, h_model, Q_model, affine_Q_interval, f_pi_model; f_model = f_model, tol=tol)
             x_con, x_arg_con, x_inv = x[:, con], x[:, arg_con], x[:, inv]
             c[con .| inv .| arg_con] .= 0
             c[.~con .& .~inv .& .~arg_con] .+= 1
             
             push_idx = c .< replay
-            push!(buffer, x[:, push_idx], c[push_idx])
-
-            
+            push!(con_buffer, x[:, push_idx], c[push_idx])
 
             n_con, n_arg_con, n_inv = size(x_con, 2), size(x_arg_con, 2), size(x_inv, 2)
 
@@ -415,20 +413,6 @@ function finetune_Q(
                     x_reg = x_reg[:, entering]
                     n_reg = size(x_reg, 2)
 
-                    # anchor regularization
-                    # x_anchor = uniform(x_low, x_high, 10*search_size)
-                    # x_anchor[task.x_dim+1:end, :] .= 0
-
-                    # h_anchor = h_model(x_anchor[1:task.x_dim, :])[1, :]
-                    # v_anchor = Q_model(x_anchor)[1, :]
-                    # min_v_anchor = affine_Q_interval(x_anchor)[1, :]
-
-                    # anchor_index = ((h_anchor .> 0.0) .& (v_anchor .<= 0.0)) .| ((h_anchor .> 0.0) .& (min_v_anchor .<= 0.0))
-
-                    # x_anchor = x_anchor[:, anchor_index]
-                    # n_anchor = size(x_anchor, 2)
-
-                    n_anchor = 0
                 elseif reg_method == "RSR"
                     # random state regularization
                     x_reg = uniform(x_low, x_high, search_size)
@@ -462,11 +446,6 @@ function finetune_Q(
                 else
                     reg_loss = 0
                 end
-                # if n_anchor > 0
-                #     anchor_loss = sum(h_model(x_anchor[1:task.x_dim, :])-Q_model(x_anchor))
-                # else
-                #     anchor_loss = 0
-                # end
                 loss = (con_loss + arg_con_loss + inv_loss) / max(n_con + n_arg_con + n_inv, 1) + reg_coef * reg_loss
                 # loss = (con_loss + inv_loss) / max(n_con + n_inv, 1) + reg_coef * reg_loss
                 return loss
@@ -474,8 +453,8 @@ function finetune_Q(
             
             # regular
             loss, grad = Flux.withgradient(con_loss_fn, Q_model)
-            # Optimisers.update!(opt_state_all, Q_model, grad[1])
-            Optimisers.update!(opt_state_u, Q_model, grad[1])
+            Optimisers.update!(opt_state_all, Q_model, grad[1])
+            # Optimisers.update!(opt_state_u, Q_model, grad[1])
             Q_Q_prime_model, affine_Q_interval = create_Q_Q_prime(Q_model, f_pi_model, f_model, task)
             
             with_logger(logger) do
@@ -483,12 +462,86 @@ function finetune_Q(
                 @info "finetune" value_loss=loss log_step_increment=0
                 @info "finetune" sampled_constraint_counterexample=n_con log_step_increment=0
                 @info "finetune" sampled_arg_constraint_counterexample=n_arg_con log_step_increment=0
-                @info "finetune" sampled_invariance_counterexample=n_inv log_step_increment=0
-                
                 
                 if !isnothing(reg_method)
                     @info "finetune" regularization_state=n_reg log_step_increment=0
-                    @info "finetune" anchor_state=n_anchor log_step_increment=0
+                end
+            end
+        elseif length(inv_buffer.stored) > 0
+            skipped = 0
+            inv_update += 1
+            n = min(sample_size, length(inv_buffer.stored))
+            x, c = pop!(inv_buffer, n)
+            con, arg_con, inv = filter_counterexample_Q(task, x, h_model, Q_model, affine_Q_interval, f_pi_model; f_model = f_model, tol=tol)
+            x_con, x_arg_con, x_inv = x[:, con], x[:, arg_con], x[:, inv]
+            c[con .| inv .| arg_con] .= 0
+            c[.~con .& .~inv .& .~arg_con] .+= 1
+            
+            push_idx = c .< replay
+            push!(inv_buffer, x[:, push_idx], c[push_idx])
+
+            
+
+            n_con, n_arg_con, n_inv = size(x_con, 2), size(x_arg_con, 2), size(x_inv, 2)
+
+            if !isnothing(reg_method) && (n_con + n_arg_con + n_inv > 0) && (
+                isnothing(esr_max_con) || (n_con + n_arg_con + n_inv < esr_max_con))
+                if reg_method == "ESR"
+                    # entering state regularization
+                    x_reg = uniform(x_low, x_high, search_size)
+                    h_reg = h_model(x_reg[1:task.x_dim, :])[1, :]
+                    v_reg = Q_model(x_reg)[1, :]
+                    
+                    v_reg_prime = affine_Q_interval(vcat(f_model(x_reg), zeros(task.u_dim, size(x_reg, 2))))[1, :]
+                    
+                    entering = (h_reg .<= -eps_h) .& (v_reg .> 0) .& (
+                        v_reg .<= eps_v) .& (v_reg_prime .<= -eps_v)
+
+                    # entering = (h_reg .<= 0) .& (v_reg .> 0).& (v_reg_prime .<= eps_v)
+
+                    x_reg = x_reg[:, entering]
+                    n_reg = size(x_reg, 2)
+
+                elseif reg_method == "RSR"
+                    # random state regularization
+                    x_reg = uniform(x_low, x_high, search_size)
+                    n_reg = size(x_reg, 2)
+                end
+            else
+                n_reg = 0
+            end
+
+            function inv_loss_fn(Q_model)
+                if n_inv > 0
+                    # inv_loss = sum(-Q_model(x_inv) + affine_Q_interval(vcat(f_model(x_inv), zeros(task.u_dim, size(x_inv, 2)))))
+                    inv_loss = sum(-Q_model(x_inv) + Q_model(vcat(f_model(x_inv), zeros(task.u_dim, size(x_inv, 2)))))
+                    # inv_loss = sum(-Q_model(x_inv))
+                else
+                    inv_loss = 0
+                end
+                if n_reg > 0
+                    reg_loss = mean(Q_model(x_reg))
+                else
+                    reg_loss = 0
+                end
+                loss = (con_loss + arg_con_loss + inv_loss) / max(n_con + n_arg_con + n_inv, 1) + reg_coef * reg_loss
+                # loss = (con_loss + inv_loss) / max(n_con + n_inv, 1) + reg_coef * reg_loss
+                return loss
+            end
+            
+            # regular
+            loss, grad = Flux.withgradient(inv_loss_fn, Q_model)
+            # Optimisers.update!(opt_state_all, Q_model, grad[1])
+            Optimisers.update!(opt_state_u, Q_model, grad[1])
+            Q_Q_prime_model, affine_Q_interval = create_Q_Q_prime(Q_model, f_pi_model, f_model, task)
+            
+            with_logger(logger) do
+                @info "finetune" sample_size=n log_step_increment=0
+                @info "finetune" value_loss=loss log_step_increment=0
+                @info "finetune" sampled_invariance_counterexample=n_inv log_step_increment=0
+                
+                if !isnothing(reg_method)
+                    @info "finetune" regularization_state=n_reg log_step_increment=0
                 end
             end
         else

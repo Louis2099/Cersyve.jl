@@ -376,8 +376,12 @@ function filter_counterexample_Q(
     # inv = (v .<= tol) .& (min_v_prime .> -tol)
 
     #TODO: Double posi-boundary
-    con = (v .<= -tol) .& (h .> tol)
-    arg_con = (min_v .<= -tol) .& (h .> tol)
+    # con = (v .<= -tol) .& (h .> tol)
+    # arg_con = (min_v .<= -tol) .& (h .> tol)
+    # inv = (v .<= -tol) .& (min_v_prime .> tol) .& (.~con) .& (.~arg_con)
+
+    con = (v .<= 0) .& (h .> 0)
+    arg_con = (min_v .<= 0) .& (h .> 0)
     inv = (v .<= -tol) .& (min_v_prime .> tol) .& (.~con) .& (.~arg_con)
 
     # con = (v .<= -tol) .& (h .> 0.0)
