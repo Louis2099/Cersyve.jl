@@ -290,17 +290,6 @@ function finetune_Q(
     save_every::Int64 = 1000,
     early_stop::Union{Int64, Nothing} = nothing,
 )
-    function update_value_network!(model::Any, loss_fn, opt_state, trainable_params)
-        # Calculate gradients
-        loss, grad = Flux.withgradient(loss_fn, model)
-        value_grad = grad[1][:value_network]
-        #println(typeof(value_grad))
-        #println(sizeof(value_grad))
-        #grad = Flux.gradient(() -> loss_fn, Flux.params(model.value_network))
-        
-        Flux.update!(opt_state, model.value_network, value_grad)
-        return loss
-    end
     
     skipped = 0
     verified = 0
@@ -344,12 +333,7 @@ function finetune_Q(
     Q_h_model = create_Q_constraint_model(Q_model, h_model, task)
     Q_Q_prime_model, affine_Q_interval = create_Q_Q_prime(Q_model, f_pi_model, f_model, task)
 
-    # println(pathof(ModelVerification))
 
-    #Test verify
-    # con_res, inv_res = verify_value(x_low, x_high, Q_h_model, Q_Q_prime_model;
-    #             con_start_values=con_start_values, inv_start_values=inv_start_values)
-    # exit()
     con_update = 0
     inv_update = 0
     verifying = false
