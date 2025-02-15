@@ -1114,9 +1114,9 @@ end
 function create_Q_Q_prime(affine_Q, f_pi_model, f_model, task)
     # creating Q_prime
     # affine_Q_interval = create_parallel_affine_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
-    # affine_Q_interval = create_mul_affine_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
+    affine_Q_interval = create_mul_affine_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
     # affine_Q_interval = create_mul_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
-    affine_Q_interval = create_x_mul_xu_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
+    # affine_Q_interval = create_x_mul_xu_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
     # affine_Q_interval = create_x_add_xu_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
     W_x = create_filter_matrix(1, task.x_dim, task.x_dim + task.u_dim)
     b_x = zeros(task.x_dim)

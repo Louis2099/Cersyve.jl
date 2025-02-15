@@ -366,17 +366,19 @@ function filter_counterexample_Q(
     # inv = (v .<= tol) .& (min_v_prime .> -tol) .& (.~con)
     
     # con = ((v .<= tol) .& (h .> -tol)) .| ((min_v .<= tol) .& (h .> -tol))
-    con = ((v .<= tol) .& (h .> -tol))
-    arg_con = ((min_v .<= tol) .& (h .> -tol)).& (.~con)
-    # arg_con = ((min_v .<= tol) .& (h .> -tol)) .& (.~con)
-    inv = (v .<= tol) .& (min_v_prime .> -tol) .& (.~con) .& (.~arg_con)
+    # con = ((v .<= tol) .& (h .> -tol))
+    # arg_con = ((min_v .<= tol) .& (h .> -tol)).& (.~con)
+    # # arg_con = ((min_v .<= tol) .& (h .> -tol)) .& (.~con)
+    # inv = (v .<= tol) .& (min_v_prime .> -tol) .& (.~con) .& (.~arg_con)
+    
     # con = ((v .<= tol) .& (h .> -tol))
     # arg_con = ((min_v .<= tol) .& (h .> -tol))
     # inv = (v .<= tol) .& (min_v_prime .> -tol)
 
     #TODO: Double posi-boundary
-    # con = (v .<= -tol) .& (h .> tol)
-    # inv = (v .<= -tol) .& (min_v_prime .> tol) .& (.~con)
+    con = (v .<= -tol) .& (h .> tol)
+    arg_con = (min_v .<= -tol) .& (h .> tol)
+    inv = (v .<= -tol) .& (min_v_prime .> tol) .& (.~con) .& (.~arg_con)
 
     # con = (v .<= -tol) .& (h .> 0.0)
     # inv = (v .<= -tol) .& (min_v_prime .> 0.0) .& (.~con)
