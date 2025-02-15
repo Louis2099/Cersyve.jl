@@ -34,19 +34,6 @@ function finetune_value(
     eval_every::Int64 = 10,
     save_every::Int64 = 1000,
 )
-    function update_value_network!(model::Any, loss_fn, opt_state)
-        # Calculate gradients
-        loss, grad = Flux.withgradient(loss_fn, model)
-        value_grad = grad[1][:value_network]
-        #println(typeof(value_grad))
-        #println(sizeof(value_grad))
-        #grad = Flux.gradient(() -> loss_fn, Flux.params(model.value_network))
-        
-        Flux.update!(opt_state, model.value_network, value_grad)
-        return loss
-    end
-    
-
     skipped = 0
     verified = 0
     con_start_values = nothing
@@ -434,19 +421,12 @@ function finetune_Q(
                 else
                     arg_con_loss = 0
                 end
-                if n_inv > 0
-                    # inv_loss = sum(-Q_model(x_inv) + affine_Q_interval(vcat(f_model(x_inv), zeros(task.u_dim, size(x_inv, 2)))))
-                    inv_loss = sum(-Q_model(x_inv) + Q_model(vcat(f_model(x_inv), zeros(task.u_dim, size(x_inv, 2)))))
-                    # inv_loss = sum(-Q_model(x_inv))
-                else
-                    inv_loss = 0
-                end
                 if n_reg > 0
                     reg_loss = mean(Q_model(x_reg))
                 else
                     reg_loss = 0
                 end
-                loss = (con_loss + arg_con_loss + inv_loss) / max(n_con + n_arg_con + n_inv, 1) + reg_coef * reg_loss
+                loss = (con_loss + arg_con_loss) / max(n_con + n_arg_con, 1) + reg_coef * reg_loss
                 # loss = (con_loss + inv_loss) / max(n_con + n_inv, 1) + reg_coef * reg_loss
                 return loss
             end
@@ -456,6 +436,7 @@ function finetune_Q(
             Optimisers.update!(opt_state_all, Q_model, grad[1])
             # Optimisers.update!(opt_state_u, Q_model, grad[1])
             Q_Q_prime_model, affine_Q_interval = create_Q_Q_prime(Q_model, f_pi_model, f_model, task)
+            Q_h_model = create_Q_constraint_model(Q_model, h_model, task)
             
             with_logger(logger) do
                 @info "finetune" sample_size=n log_step_increment=0
@@ -479,8 +460,6 @@ function finetune_Q(
             
             push_idx = c .< replay
             push!(inv_buffer, x[:, push_idx], c[push_idx])
-
-            
 
             n_con, n_arg_con, n_inv = size(x_con, 2), size(x_arg_con, 2), size(x_inv, 2)
 
@@ -511,7 +490,7 @@ function finetune_Q(
                 n_reg = 0
             end
 
-            function inv_loss_fn(Q_model)
+            function loss_fn(Q_model)
                 if n_inv > 0
                     # inv_loss = sum(-Q_model(x_inv) + affine_Q_interval(vcat(f_model(x_inv), zeros(task.u_dim, size(x_inv, 2)))))
                     inv_loss = sum(-Q_model(x_inv) + Q_model(vcat(f_model(x_inv), zeros(task.u_dim, size(x_inv, 2)))))
@@ -524,16 +503,17 @@ function finetune_Q(
                 else
                     reg_loss = 0
                 end
-                loss = (con_loss + arg_con_loss + inv_loss) / max(n_con + n_arg_con + n_inv, 1) + reg_coef * reg_loss
+                loss = (inv_loss) / max(n_inv, 1) + reg_coef * reg_loss
                 # loss = (con_loss + inv_loss) / max(n_con + n_inv, 1) + reg_coef * reg_loss
                 return loss
             end
             
             # regular
-            loss, grad = Flux.withgradient(inv_loss_fn, Q_model)
+            loss, grad = Flux.withgradient(loss_fn, Q_model)
             # Optimisers.update!(opt_state_all, Q_model, grad[1])
             Optimisers.update!(opt_state_u, Q_model, grad[1])
             Q_Q_prime_model, affine_Q_interval = create_Q_Q_prime(Q_model, f_pi_model, f_model, task)
+            Q_h_model = create_Q_constraint_model(Q_model, h_model, task)
             
             with_logger(logger) do
                 @info "finetune" sample_size=n log_step_increment=0

@@ -11,25 +11,27 @@ function verify_value(
     split_method = Bisect(1)
     solver = MIPVerify(pre_bound_method=Crown())
     X = Hyperrectangle(low=x_low, high=x_high)
-    Y = Complement(HPolyhedron([1 0; 0 -1], [0, 0]))
+    
     
     #TODO: Double posi-bound
     if tol != 0.0
         rec_tor = ceil(Int, 1/tol)
     
-        Y = Complement(HPolyhedron([rec_tor 0; 0 -rec_tor], [-1, -1]))
-        
-        Y = Complement(HPolyhedron([rec_tor 0; 0 -rec_tor], [-1, 0]))
+        inv_Y = Complement(HPolyhedron([rec_tor 0; 0 -rec_tor], [-1, -1]))
+        con_Y = Complement(HPolyhedron([1 0; 0 -1], [0, 0]))
+    else
+        inv_Y = Complement(HPolyhedron([1 0; 0 -1], [0, 0]))
+        con_Y = Complement(HPolyhedron([1 0; 0 -1], [0, 0]))
     end
 
     # verify constraint property
-    con_problem = Problem(V_h_model, X, Y)
+    con_problem = Problem(V_h_model, X, con_Y)
     con_t = @elapsed con_res = verify(search_method, split_method, solver, con_problem;
         collect_bound=true, start_values=con_start_values)
     @printf "Constraint property %s! Verification time: %.3fs\n" con_res.status con_t
 
     # verify invariance property
-    inv_problem = Problem(V_V_prime_model, X, Y)
+    inv_problem = Problem(V_V_prime_model, X, inv_Y)
     inv_t = @elapsed inv_res = verify(search_method, split_method, solver, inv_problem;
         collect_bound=true, start_values=inv_start_values)
     @printf "Invariance property %s! Verification time: %.3fs\n" inv_res.status inv_t
