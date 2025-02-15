@@ -944,6 +944,7 @@ function create_x_add_x_mul_u_Q(x_dim, u_dim, hidden_sizes=32, output_emb_dim = 
     )
 
     b2 = Chain(
+        filter_u,
         Dense(u_dim, hidden_sizes),
         Dense(hidden_sizes, hidden_sizes),
         Dense(hidden_sizes, output_emb_dim)
@@ -957,7 +958,7 @@ function create_x_add_x_mul_u_Q(x_dim, u_dim, hidden_sizes=32, output_emb_dim = 
     )
     # final_layer = Chain(Dense(32 + u_dim, 1))
     # sum_layer = Dense(ones(1, output_emb_dim), zeros(1))
-    sum_layer = Dense(output_emb_dim, 1)
+    final_layer = Dense(output_emb_dim, 1)
     # Complete model
     model = Chain(
         Parallel(
@@ -969,7 +970,7 @@ function create_x_add_x_mul_u_Q(x_dim, u_dim, hidden_sizes=32, output_emb_dim = 
             ),
             b3
         ),
-        sum_layer
+        final_layer
         
     )
     return model
@@ -983,35 +984,35 @@ function create_x_add_x_mul_u_Q_interval(affine_Q, x_dim, u_dim, u_low, u_high, 
     u_b = zeros(u_dim)
     filter_u = Dense(W_u, u_b)
 
-    b1_l2_w = affine_Q[1][1][1][1][2].weight
-    b1_l2_b = affine_Q[1][1][1][1][2].bias
-    b1_l3_w = affine_Q[1][1][1][1][3].weight
-    b1_l3_b = affine_Q[1][1][1][1][3].bias
-    b1_l4_w = affine_Q[1][1][1][1][4].weight
-    b1_l4_b = affine_Q[1][1][1][1][4].bias
+    b1_l2_w = affine_Q[1][1][1][2].weight
+    b1_l2_b = affine_Q[1][1][1][2].bias
+    b1_l3_w = affine_Q[1][1][1][3].weight
+    b1_l3_b = affine_Q[1][1][1][3].bias
+    b1_l4_w = affine_Q[1][1][1][4].weight
+    b1_l4_b = affine_Q[1][1][1][4].bias
 
-    b1 = affine_Q[1][1][1][1]
+    b1 = affine_Q[1][1][1]
 
-    b2_l2_w = affine_Q[1][1][1][2][2].weight
-    b2_l2_b = affine_Q[1][1][1][2][2].bias
-    b2_l3_w = affine_Q[1][1][1][2][3].weight
-    b2_l3_b = affine_Q[1][1][1][2][3].bias
-    b2_l4_w = affine_Q[1][1][1][2][4].weight
-    b2_l4_b = affine_Q[1][1][1][2][4].bias
+    b2_l2_w = affine_Q[1][1][2][2].weight
+    b2_l2_b = affine_Q[1][1][2][2].bias
+    b2_l3_w = affine_Q[1][1][2][3].weight
+    b2_l3_b = affine_Q[1][1][2][3].bias
+    b2_l4_w = affine_Q[1][1][2][4].weight
+    b2_l4_b = affine_Q[1][1][2][4].bias
     
-    b2 = affine_Q[1][1][1][2]
+    b2 = affine_Q[1][1][2]
 
-    b3_l2_w = affine_Q[1][1][2][2].weight
-    b3_l2_b = affine_Q[1][1][2][2].bias
-    b3_l3_w = affine_Q[1][1][2][3].weight
-    b3_l3_b = affine_Q[1][1][2][3].bias
-    b3_l4_w = affine_Q[1][1][2][4].weight
-    b3_l4_b = affine_Q[1][1][2][4].bias
+    b3_l2_w = affine_Q[1][2][2].weight
+    b3_l2_b = affine_Q[1][2][2].bias
+    b3_l3_w = affine_Q[1][2][3].weight
+    b3_l3_b = affine_Q[1][2][3].bias
+    b3_l4_w = affine_Q[1][2][4].weight
+    b3_l4_b = affine_Q[1][2][4].bias
 
-    b3 = affine_Q[1][1][2]
+    b3 = affine_Q[1][2]
 
-    final_w = affine_Q[1][2].weight
-    final_b = affine_Q[1][2].bias
+    final_w = affine_Q[2].weight
+    final_b = affine_Q[2].bias
 
     
     
@@ -1022,14 +1023,14 @@ function create_x_add_x_mul_u_Q_interval(affine_Q, x_dim, u_dim, u_low, u_high, 
     
     minmax_layer = Dense(weight_pos_neg(output_emb_dim), zeros(2*output_emb_dim), relu)
     neg_layer = Dense(weight_neg(output_emb_dim), zeros(2*output_emb_dim))
-    replicate_emb = Dense(weight_replicate_emb(output_emb_dim), bias_replicate_emb(zeros(2*output_emb_dim)))
+    replicate_emb = Dense(weight_replicate_emb(output_emb_dim), bias_replicate_emb(zeros(output_emb_dim)))
 
 
-    u_luul_2_h1_luul = Dense(weight_luul(b3_l2_w), bias_luul(b3_l2_b), relu)
+    u_luul_2_h1_luul = Dense(weight_luul(b2_l2_w), bias_luul(b2_l2_b), relu)
    
-    h1_luul_2_h2_luul = Dense(weight_luul(b3_l3_w), bias_luul(b3_l3_b), relu)
+    h1_luul_2_h2_luul = Dense(weight_luul(b2_l3_w), bias_luul(b2_l3_b), relu)
 
-    h2_luul_2_Q_lu = Dense(weight_lu(b3_l4_w), [b3_l4_b;b3_l4_b])
+    h2_luul_2_Q_lu = Dense(weight_lu(b2_l4_w), [b2_l4_b;b2_l4_b])
 
     final_layer = Dense(weight_lu_2_l(final_w), final_b)
     
@@ -1039,7 +1040,12 @@ function create_x_add_x_mul_u_Q_interval(affine_Q, x_dim, u_dim, u_low, u_high, 
         Dense(32, 32, relu),
         Dense(32, output_emb_dim)
     )
-    Flux.copy!(params(base_b1), params(b1))
+    base_b1[2].weight .= b1_l2_w
+    base_b1[2].bias .= b1_l2_b
+    base_b1[3].weight .= b1_l3_w
+    base_b1[3].bias .= b1_l3_b
+    base_b1[4].weight .= b1_l4_w
+    base_b1[4].bias .= b1_l4_b
 
     base_b3 = Chain(
         filter_x,
@@ -1047,7 +1053,12 @@ function create_x_add_x_mul_u_Q_interval(affine_Q, x_dim, u_dim, u_low, u_high, 
         Dense(32, 32, relu),
         Dense(32, output_emb_dim)
     )
-    Flux.copy!(params(base_b3), params(b3))
+    base_b3[2].weight .= b3_l2_w
+    base_b3[2].bias .= b3_l2_b
+    base_b3[3].weight .= b3_l3_w
+    base_b3[3].bias .= b3_l3_b
+    base_b3[4].weight .= b3_l4_w
+    base_b3[4].bias .= b3_l4_b
     
     base_b2 = Chain(
         filter_u,
@@ -1116,8 +1127,9 @@ function create_Q_Q_prime(affine_Q, f_pi_model, f_model, task)
     # affine_Q_interval = create_parallel_affine_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
     # affine_Q_interval = create_mul_affine_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
     # affine_Q_interval = create_mul_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
-    affine_Q_interval = create_x_mul_xu_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
+    # affine_Q_interval = create_x_mul_xu_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
     # affine_Q_interval = create_x_add_xu_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
+    affine_Q_interval = create_x_add_x_mul_u_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
     W_x = create_filter_matrix(1, task.x_dim, task.x_dim + task.u_dim)
     b_x = zeros(task.x_dim)
     filter_x = Dense(W_x, b_x)

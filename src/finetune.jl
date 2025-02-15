@@ -312,17 +312,16 @@ function finetune_Q(
     
     #TODO for the multiply model
     # Optimisers.freeze!(opt_state.layers[1].layers[1].layers[1])
-    Optimisers.freeze!(opt_state_all.layers[1].layers[1].layers[1])
-    # Optimisers.freeze!(opt_state_all.layers[1].layers[1])
-    # Optimisers.freeze!(opt_state_all.layers[1].layers[1].layers[2])
-    # Optimisers.freeze!(opt_state_all.layers[1].layers[1].layers[3])
-    # Optimisers.freeze!(opt_state_all.layers[1].layers[2].layers[1])
-    Optimisers.freeze!(opt_state_all.layers[2])
+    Optimisers.freeze!(opt_state_all.layers[1][1][1][1])
+    Optimisers.freeze!(opt_state_all.layers[1][1][2][1])
+    Optimisers.freeze!(opt_state_all.layers[1][2][1])
 
-    # Optimisers.freeze!(opt_state_u.layers[1].layers[1].layers[1])
-    Optimisers.freeze!(opt_state_u.layers[1].layers[1])
-    # Optimisers.freeze!(opt_state_u.layers[1].layers[2].layers[1])
-    Optimisers.freeze!(opt_state_u.layers[2])
+    
+    Optimisers.freeze!(opt_state_u.layers[1][1][1][1])
+    Optimisers.freeze!(opt_state_u.layers[1][1][2][1])
+    Optimisers.freeze!(opt_state_u.layers[1][2][1])
+    Optimisers.freeze!(opt_state_u.layers[1][2])
+
     ######################################################
     if isnothing(log_dir)
         log_dir = joinpath(@__DIR__, "../log/")
@@ -349,7 +348,8 @@ function finetune_Q(
             v = Q_model(x)[1, :]
             min_v = affine_Q_interval(x)[1, :]
             
-            bnd_index = ((v .> -bnd_eps) .& (v .<= tol)) .| ((min_v .> -bnd_eps/10) .& (min_v .<= tol))
+            # bnd_index = ((v .> -bnd_eps) .& (v .<= tol)) .| ((min_v .> -bnd_eps/10) .& (min_v .<= tol))
+            bnd_index = ((v .> -bnd_eps) .& (v .<= tol))
             
             x_bnd = x[:, bnd_index]
 
@@ -452,17 +452,18 @@ function finetune_Q(
                     n_reg = size(x_reg, 2)
 
                     # anchor regularization
-                    x_anchor = uniform(x_low, x_high, 10*search_size)
-                    x_anchor[task.x_dim+1:end, :] .= 0
+                    # x_anchor = uniform(x_low, x_high, 10*search_size)
+                    # x_anchor[task.x_dim+1:end, :] .= 0
 
-                    h_anchor = h_model(x_anchor[1:task.x_dim, :])[1, :]
-                    v_anchor = Q_model(x_anchor)[1, :]
-                    min_v_anchor = affine_Q_interval(x_anchor)[1, :]
+                    # h_anchor = h_model(x_anchor[1:task.x_dim, :])[1, :]
+                    # v_anchor = Q_model(x_anchor)[1, :]
+                    # min_v_anchor = affine_Q_interval(x_anchor)[1, :]
 
-                    anchor_index = ((h_anchor .> 0.0) .& (v_anchor .<= 0.0)) .| ((h_anchor .> 0.0) .& (min_v_anchor .<= 0.0))
+                    # anchor_index = ((h_anchor .> 0.0) .& (v_anchor .<= 0.0)) .| ((h_anchor .> 0.0) .& (min_v_anchor .<= 0.0))
 
-                    x_anchor = x_anchor[:, anchor_index]
-                    n_anchor = size(x_anchor, 2)
+                    # x_anchor = x_anchor[:, anchor_index]
+                    # n_anchor = size(x_anchor, 2)
+                    n_anchor = 0
 
                 elseif reg_method == "RSR"
                     # random state regularization
@@ -487,8 +488,8 @@ function finetune_Q(
                 end
                 if n_inv > 0
                     # inv_loss = sum(-Q_model(x_inv) + affine_Q_interval(vcat(f_model(x_inv), zeros(task.u_dim, size(x_inv, 2)))))
-                    inv_loss = sum(-Q_model(x_inv) + Q_model(vcat(f_model(x_inv), zeros(task.u_dim, size(x_inv, 2)))))
-                    # inv_loss = sum(-Q_model(x_inv))
+                    # inv_loss = sum(-Q_model(x_inv) + Q_model(vcat(f_model(x_inv), zeros(task.u_dim, size(x_inv, 2)))))
+                    inv_loss = sum(-Q_model(x_inv))
                 else
                     inv_loss = 0
                 end
@@ -509,8 +510,8 @@ function finetune_Q(
             
             # regular
             loss, grad = Flux.withgradient(con_loss_fn, Q_model)
-            # Optimisers.update!(opt_state_all, Q_model, grad[1])
-            Optimisers.update!(opt_state_u, Q_model, grad[1])
+            Optimisers.update!(opt_state_all, Q_model, grad[1])
+            # Optimisers.update!(opt_state_u, Q_model, grad[1])
             Q_Q_prime_model, affine_Q_interval = create_Q_Q_prime(Q_model, f_pi_model, f_model, task)
             
             with_logger(logger) do

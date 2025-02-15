@@ -58,7 +58,8 @@ export backtrack_GD_U
 export uniform
 export minimize_Q
 export create_non_linear_dynamics_model
-
+export create_x_add_x_mul_u_Q_interval
+export create_x_add_x_mul_u_Q
 
 include("2D_double_integrator.jl")
 include("double_integrator.jl")
