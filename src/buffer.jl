@@ -18,7 +18,7 @@ function Buffer(capacity::Int64, dim::Int64)
 end
 
 function push!(buffer::Buffer, x::Matrix{Float32}, c::Union{Nothing, Vector{Int64}} = nothing)
-    @assert length(buffer.vacant) >= size(x, 2)
+    # @assert length(buffer.vacant) >= size(x, 2)
     if length(buffer.vacant) >= size(x, 2)
         vacant_idx = StatsBase.sample(1:length(buffer.vacant), size(x, 2), replace=false, ordered=true)
         push_idx = splice!(buffer.vacant, vacant_idx)

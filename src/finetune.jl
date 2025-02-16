@@ -334,8 +334,8 @@ function finetune_Q(
             v = Q_model(x)[1, :]
             min_v = affine_Q_interval(x)[1, :]
             
-            bnd_index = ((v .> -bnd_eps) .& (v .<= tol)) .| ((min_v .> -bnd_eps/10) .& (min_v .<= tol))
-            # bnd_index = ((v .> -bnd_eps) .& (v .<= tol))
+            # bnd_index = ((v .> -bnd_eps) .& (v .<= tol)) .| ((min_v .> -bnd_eps/10) .& (min_v .<= tol))
+            bnd_index = ((v .> -bnd_eps) .& (v .<= tol))
             
             x_bnd = x[:, bnd_index]
 
