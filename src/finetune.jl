@@ -414,21 +414,6 @@ function finetune_Q(
 
                     x_reg = x_reg[:, entering]
                     n_reg = size(x_reg, 2)
-
-                    # anchor regularization
-                    # x_anchor = uniform(x_low, x_high, 10*search_size)
-                    # x_anchor[task.x_dim+1:end, :] .= 0
-
-                    # h_anchor = h_model(x_anchor[1:task.x_dim, :])[1, :]
-                    # v_anchor = Q_model(x_anchor)[1, :]
-                    # min_v_anchor = affine_Q_interval(x_anchor)[1, :]
-
-                    # anchor_index = ((h_anchor .> 0.0) .& (v_anchor .<= 0.0)) .| ((h_anchor .> 0.0) .& (min_v_anchor .<= 0.0))
-
-                    # x_anchor = x_anchor[:, anchor_index]
-                    # n_anchor = size(x_anchor, 2)
-
-                    n_anchor = 0
                 elseif reg_method == "RSR"
                     # random state regularization
                     x_reg = uniform(x_low, x_high, search_size)
@@ -462,11 +447,6 @@ function finetune_Q(
                 else
                     reg_loss = 0
                 end
-                # if n_anchor > 0
-                #     anchor_loss = sum(h_model(x_anchor[1:task.x_dim, :])-Q_model(x_anchor))
-                # else
-                #     anchor_loss = 0
-                # end
                 loss = (con_loss + arg_con_loss + inv_loss) / max(n_con + n_arg_con + n_inv, 1) + reg_coef * reg_loss
                 # loss = (con_loss + inv_loss) / max(n_con + n_inv, 1) + reg_coef * reg_loss
                 return loss
@@ -488,7 +468,6 @@ function finetune_Q(
                 
                 if !isnothing(reg_method)
                     @info "finetune" regularization_state=n_reg log_step_increment=0
-                    @info "finetune" anchor_state=n_anchor log_step_increment=0
                 end
             end
         else
@@ -509,14 +488,12 @@ function finetune_Q(
             else
                 if con_res.status == :violated
                     ce = Float32.(con_res.info[:counter_example])
-                    push!(con_buffer, reshape(ce, length(ce), 1))
                     push!(buffer, reshape(ce, length(ce), 1))
                     println("Constraint counterexample: ", ce)
                     con_start_values = con_res.info[:verified_bounds][:values]
                 end
                 if inv_res.status == :violated
                     ce = Float32.(inv_res.info[:counter_example])
-                    push!(inv_buffer, reshape(ce, length(ce), 1))
                     push!(buffer, reshape(ce, length(ce), 1))
                     println("Invariance counterexample: ", ce)
                     inv_start_values = inv_res.info[:verified_bounds][:values]
