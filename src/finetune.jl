@@ -327,14 +327,15 @@ function finetune_Q(
     n_arg_con = 0
     n_inv = 0
     for i in ProgressBar(1:max_iter)
-        if (length(buffer.stored) < search_stop)
+        loss = 0
+        if ((length(con_buffer.stored)+length(inv_buffer.stored)) < search_stop)
             x = uniform(x_low, x_high, round(Int64, search_size / bnd_ratio))
             
             v = Q_model(x)[1, :]
             min_v = affine_Q_interval(x)[1, :]
             
-            # bnd_index = ((v .> -bnd_eps) .& (v .<= tol)) .| ((min_v .> -bnd_eps/10) .& (min_v .<= tol))
-            bnd_index = ((v .> -bnd_eps) .& (v .<= tol))
+            bnd_index = ((v .> -bnd_eps) .& (v .<= tol)) .| ((min_v .> -bnd_eps/10) .& (min_v .<= tol))
+            # bnd_index = ((v .> -bnd_eps) .& (v .<= tol))
             
             x_bnd = x[:, bnd_index]
 
@@ -434,13 +435,12 @@ function finetune_Q(
             # regular
             loss, grad = Flux.withgradient(con_loss_fn, Q_model)
             Optimisers.update!(opt_state_all, Q_model, grad[1])
-            # Optimisers.update!(opt_state_u, Q_model, grad[1])
+            
             Q_Q_prime_model, affine_Q_interval = create_Q_Q_prime(Q_model, f_pi_model, f_model, task)
             Q_h_model = create_Q_constraint_model(Q_model, h_model, task)
             
             with_logger(logger) do
                 @info "finetune" sample_size=n log_step_increment=0
-                @info "finetune" value_loss=loss log_step_increment=0
                 @info "finetune" sampled_constraint_counterexample=n_con log_step_increment=0
                 @info "finetune" sampled_arg_constraint_counterexample=n_arg_con log_step_increment=0
                 
@@ -490,7 +490,7 @@ function finetune_Q(
                 n_reg = 0
             end
 
-            function loss_fn(Q_model)
+            function inv_loss_fn(Q_model)
                 if n_inv > 0
                     # inv_loss = sum(-Q_model(x_inv) + affine_Q_interval(vcat(f_model(x_inv), zeros(task.u_dim, size(x_inv, 2)))))
                     inv_loss = sum(-Q_model(x_inv) + Q_model(vcat(f_model(x_inv), zeros(task.u_dim, size(x_inv, 2)))))
@@ -509,15 +509,28 @@ function finetune_Q(
             end
             
             # regular
-            loss, grad = Flux.withgradient(loss_fn, Q_model)
+            loss, grad = Flux.withgradient(inv_loss_fn, Q_model)
             # Optimisers.update!(opt_state_all, Q_model, grad[1])
-            Optimisers.update!(opt_state_u, Q_model, grad[1])
+            
+            if verifying
+                Optimisers.thaw!(opt_state_u)
+                Optimisers.freeze!(opt_state_u.layers[1].layers[1].layers[1])
+                Optimisers.freeze!(opt_state_u.layers[1].layers[2].layers[1])
+                Optimisers.freeze!(opt_state_u.layers[2])
+                Optimisers.update!(opt_state_u, Q_model, grad[1])
+                
+                # re-freeze the model
+                Optimisers.freeze!(opt_state_u.layers[1].layers[1])
+                
+            else
+                Optimisers.update!(opt_state_u, Q_model, grad[1])
+            end
             Q_Q_prime_model, affine_Q_interval = create_Q_Q_prime(Q_model, f_pi_model, f_model, task)
             Q_h_model = create_Q_constraint_model(Q_model, h_model, task)
             
             with_logger(logger) do
                 @info "finetune" sample_size=n log_step_increment=0
-                @info "finetune" value_loss=loss log_step_increment=0
+                
                 @info "finetune" sampled_invariance_counterexample=n_inv log_step_increment=0
                 
                 if !isnothing(reg_method)
@@ -528,6 +541,7 @@ function finetune_Q(
             skipped += 1
         end
 
+        verifying = false
         if skipped == max_skip
             jldsave(joinpath(log_path, "Q_finetune.jld2"); state=Flux.state(Q_model))
             println("----- Verification Starts -----")
@@ -565,6 +579,9 @@ function finetune_Q(
             @info "finetune" verified_times=verified log_step_increment=0
             @info "finetune" con_update=con_update log_step_increment=0
             @info "finetune" inv_update=inv_update log_step_increment=0
+            @info "finetune" value_loss=loss log_step_increment=0
+            @info "finetune" con_buffer_size=length(con_buffer.stored) log_step_increment=0
+            @info "finetune" inv_buffer_size=length(inv_buffer.stored) log_step_increment=0
         end
 
         if i % eval_every == 0

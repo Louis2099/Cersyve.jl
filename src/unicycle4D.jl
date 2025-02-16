@@ -7,6 +7,7 @@ using EllipsisNotation
 # state: [xo, yo, v, theta]
 x_dim = 4
 x_low = Float32[-1, -1, -1, -pi]
+# x_low = Float32[-1, -1, 0, -pi]
 x_high = Float32[1, 1, 1, pi]
 
 # action: [a, w]
