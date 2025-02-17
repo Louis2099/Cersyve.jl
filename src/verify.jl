@@ -18,6 +18,7 @@ function verify_value(
         rec_tor = ceil(Int, 1/tol)
     
         inv_Y = Complement(HPolyhedron([rec_tor 0; 0 -rec_tor], [-1, -1]))
+        # con_Y = Complement(HPolyhedron([rec_tor 0; 0 -rec_tor], [-1, -1]))
         con_Y = Complement(HPolyhedron([1 0; 0 -1], [0, 0]))
     else
         inv_Y = Complement(HPolyhedron([1 0; 0 -1], [0, 0]))
