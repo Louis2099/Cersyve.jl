@@ -349,7 +349,8 @@ function finetune_Q(
             v = Q_model(x)[1, :]
             min_v = affine_Q_interval(x)[1, :]
             
-            bnd_index = ((v .> -bnd_eps) .& (v .<= tol)) .| ((min_v .> -bnd_eps/10) .& (min_v .<= tol))
+            # bnd_index = ((v .> -bnd_eps) .& (v .<= tol)) .| ((min_v .> -bnd_eps/10) .& (min_v .<= tol))
+            bnd_index = ((v .> -bnd_eps) .& (v .<= tol))
             
             x_bnd = x[:, bnd_index]
 
@@ -365,8 +366,8 @@ function finetune_Q(
             con, arg_con, inv = filter_counterexample_Q(task, x_pgd, h_model, Q_model, affine_Q_interval, f_pi_model; f_model = f_model, tol=tol)
             
              
-            ce = con .| inv .| arg_con
-            
+            # ce = con .| inv .| arg_con
+            ce = con .| inv
             push!(con_buffer, x_pgd[:, con])
             push!(inv_buffer, x_pgd[:, inv])
             push!(buffer, x_pgd[:, ce])
@@ -451,18 +452,21 @@ function finetune_Q(
                     x_reg = x_reg[:, entering]
                     n_reg = size(x_reg, 2)
 
+                    #TODO: disable anchor regularization for now
                     # anchor regularization
-                    x_anchor = uniform(x_low, x_high, 10*search_size)
-                    x_anchor[task.x_dim+1:end, :] .= 0
+                    # x_anchor = uniform(x_low, x_high, 10*search_size)
+                    # x_anchor[task.x_dim+1:end, :] .= 0
 
-                    h_anchor = h_model(x_anchor[1:task.x_dim, :])[1, :]
-                    v_anchor = Q_model(x_anchor)[1, :]
-                    min_v_anchor = affine_Q_interval(x_anchor)[1, :]
+                    # h_anchor = h_model(x_anchor[1:task.x_dim, :])[1, :]
+                    # v_anchor = Q_model(x_anchor)[1, :]
+                    # min_v_anchor = affine_Q_interval(x_anchor)[1, :]
 
-                    anchor_index = ((h_anchor .> 0.0) .& (v_anchor .<= 0.0)) .| ((h_anchor .> 0.0) .& (min_v_anchor .<= 0.0))
+                    # anchor_index = ((h_anchor .> 0.0) .& (v_anchor .<= 0.0)) .| ((h_anchor .> 0.0) .& (min_v_anchor .<= 0.0))
 
-                    x_anchor = x_anchor[:, anchor_index]
-                    n_anchor = size(x_anchor, 2)
+                    # x_anchor = x_anchor[:, anchor_index]
+                    # n_anchor = size(x_anchor, 2)
+
+                    n_anchor = 0
 
                 elseif reg_method == "RSR"
                     # random state regularization
@@ -497,20 +501,21 @@ function finetune_Q(
                 else
                     reg_loss = 0
                 end
-                if n_anchor > 0
-                    anchor_loss = sum(h_model(x_anchor[1:task.x_dim, :])-Q_model(x_anchor))
-                else
-                    anchor_loss = 0
-                end
-                loss = (con_loss + arg_con_loss + inv_loss) / max(n_con + n_arg_con + n_inv, 1) + reg_coef * reg_loss + reg_coef * anchor_loss
-                # loss = (con_loss + inv_loss) / max(n_con + n_inv, 1) + reg_coef * reg_loss
+                # if n_anchor > 0
+                #     anchor_loss = sum(h_model(x_anchor[1:task.x_dim, :])-Q_model(x_anchor))
+                # else
+                #     anchor_loss = 0
+                # end
+                # loss = (con_loss + arg_con_loss + inv_loss) / max(n_con + n_arg_con + n_inv, 1) + reg_coef * reg_loss + reg_coef * anchor_loss
+                # loss = (con_loss + arg_con_loss + inv_loss) / max(n_con + n_arg_con + n_inv, 1) + reg_coef * reg_loss
+                loss = (con_loss + inv_loss) / max(n_con + n_inv, 1) + reg_coef * reg_loss
                 return loss
             end
             
             # regular
             loss, grad = Flux.withgradient(con_loss_fn, Q_model)
-            # Optimisers.update!(opt_state_all, Q_model, grad[1])
-            Optimisers.update!(opt_state_u, Q_model, grad[1])
+            Optimisers.update!(opt_state_all, Q_model, grad[1])
+            # Optimisers.update!(opt_state_u, Q_model, grad[1])
             Q_Q_prime_model, affine_Q_interval = create_Q_Q_prime(Q_model, f_pi_model, f_model, task)
             
             with_logger(logger) do
@@ -523,7 +528,7 @@ function finetune_Q(
                 
                 if !isnothing(reg_method)
                     @info "finetune" regularization_state=n_reg log_step_increment=0
-                    @info "finetune" anchor_state=n_anchor log_step_increment=0
+                    # @info "finetune" anchor_state=n_anchor log_step_increment=0
                 end
             end
         else

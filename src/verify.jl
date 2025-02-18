@@ -17,7 +17,7 @@ function verify_value(
     if tol != 0.0
         rec_tor = ceil(Int, 1/tol)
     
-        # Y = Complement(HPolyhedron([rec_tor 0; 0 -rec_tor], [-1, -1]))
+        Y = Complement(HPolyhedron([rec_tor 0; 0 -rec_tor], [-1, -1]))
         
         # Y = Complement(HPolyhedron([rec_tor 0; 0 -rec_tor], [-1, 0]))
     end
