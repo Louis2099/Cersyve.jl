@@ -29,6 +29,7 @@ export RobotArm
 export RobotDog
 export DoubleIntegrator2D
 export Unicycle4D
+export TwoLinkRobotArm
 
 export collect_data
 export collect_python_data
@@ -58,6 +59,7 @@ export backtrack_GD_U
 export uniform
 export minimize_Q
 export create_non_linear_dynamics_model
+export create_x_mul_xu_Q_interval_small
 
 
 include("2D_double_integrator.jl")
@@ -80,4 +82,5 @@ include("verify.jl")
 include("finetune.jl")
 include("backtrack_u.jl")
 include("unicycle4D.jl")
+include("2link_RobotArm.jl")
 end
