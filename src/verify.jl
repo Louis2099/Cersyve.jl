@@ -10,7 +10,7 @@ function verify_value(
     search_method = BFS(max_iter=1000000, batch_size=1000)
     split_method = Bisect(1)
     solver = MIPVerify(pre_bound_method=Crown())
-    X = Hyperrectangle(low=x_low.+tol, high=x_high.-tol)
+    X = Hyperrectangle(low=x_low, high=x_high)
     Y = Complement(HPolyhedron([1 0; 0 -1], [0, 0]))
     
     #TODO: Double posi-bound
