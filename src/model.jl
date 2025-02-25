@@ -315,6 +315,18 @@ function weight_l(W::AbstractMatrix)
     return new_W
 end
 
+function weight_l_small(W::AbstractMatrix)
+    # Split the weight matrix into positive and negative components
+    W_plus = max.(W, 0)  # Element-wise maximum 
+    W_minus = min.(W, 0) # Element-wise minimum
+    
+    # Construct the new weight matrix
+    new_W = [W_plus W_minus]
+    # println("new_W shape", size(new_W))
+    return new_W
+end
+
+
 function weight_lu_big(W::AbstractMatrix)
     # Split the weight matrix into positive and negative components
     W_plus = max.(W, 0)  # Element-wise maximum 
@@ -623,6 +635,7 @@ function create_parallel_affine_Q(x_dim, u_dim, hidden_sizes=32)
     )
     return model
 end
+
 
 
 function create_mul_Q(x_dim, u_dim, hidden_sizes=32, output_emb_dim = 8)
@@ -1190,6 +1203,38 @@ function create_x_add_x_mul_u_Q_interval(affine_Q, x_dim, u_dim, u_low, u_high, 
     return model
 end
 
+function create_baseline_affine_Q(x_dim, u_dim, hidden_sizes=[32, 32])
+    model = create_mlp(x_dim + u_dim, 1, hidden_sizes)
+    return model
+end
+
+function create_baseline_affine_Q_interval(affine_Q, x_dim, u_dim, u_low, u_high)
+    x_2_x_luul = Dense(replace_weight_xu_lu(x_dim, u_dim), replace_bias_xu_lu(u_high, u_low, x_dim, u_dim))
+
+    h1_w = affine_Q[1].weight
+    h1_b = affine_Q[1].bias
+    x_lu_2_h1_lu = Dense(weight_lu(h1_w), bias_lu(h1_b))
+
+    h2_w = affine_Q[2].weight
+    h2_b = affine_Q[2].bias   
+    h1_lu_2_h2_lu = Dense(weight_lu(h2_w), bias_lu(h2_b))
+
+
+    h3_w = affine_Q[3].weight
+    h3_b = affine_Q[3].bias
+    h2_lu_2_h3_l = Dense(weight_l_small(h3_w), h3_b)
+    
+
+    model = Chain(
+        x_2_x_luul,
+        x_lu_2_h1_lu,
+        h1_lu_2_h2_lu,
+        h2_lu_2_h3_l
+    )
+    return model
+end
+    
+
 function create_Q_constraint_model(Q_model, h_model, task)
     # function filter_x(input)
     #     return input[1:task.x_dim, :]
@@ -1226,8 +1271,9 @@ function create_Q_Q_prime(affine_Q, f_pi_model, f_model, task)
     # affine_Q_interval = create_parallel_affine_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
     # affine_Q_interval = create_mul_affine_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
     # affine_Q_interval = create_mul_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
-    affine_Q_interval = create_x_mul_xu_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
+    # affine_Q_interval = create_x_mul_xu_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
     # affine_Q_interval = create_x_add_xu_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
+    affine_Q_interval = create_baseline_affine_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
     W_x = create_filter_matrix(1, task.x_dim, task.x_dim + task.u_dim)
     b_x = zeros(task.x_dim)
     filter_x = Dense(W_x, b_x)

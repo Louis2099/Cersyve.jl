@@ -312,17 +312,17 @@ function finetune_Q(
     
     #TODO for the multiply model
     # Optimisers.freeze!(opt_state.layers[1].layers[1].layers[1])
-    Optimisers.freeze!(opt_state_all.layers[1].layers[1].layers[1])
+    # Optimisers.freeze!(opt_state_all.layers[1].layers[1].layers[1])
     # Optimisers.freeze!(opt_state_all.layers[1].layers[1])
     # Optimisers.freeze!(opt_state_all.layers[1].layers[1].layers[2])
     # Optimisers.freeze!(opt_state_all.layers[1].layers[1].layers[3])
     # Optimisers.freeze!(opt_state_all.layers[1].layers[2].layers[1])
-    Optimisers.freeze!(opt_state_all.layers[2])
+    # Optimisers.freeze!(opt_state_all.layers[2])
 
     # Optimisers.freeze!(opt_state_u.layers[1].layers[1].layers[1])
-    Optimisers.freeze!(opt_state_u.layers[1].layers[1])
+    # Optimisers.freeze!(opt_state_u.layers[1].layers[1])
     # Optimisers.freeze!(opt_state_u.layers[1].layers[2].layers[1])
-    Optimisers.freeze!(opt_state_u.layers[2])
+    # Optimisers.freeze!(opt_state_u.layers[2])
     ######################################################
     if isnothing(log_dir)
         log_dir = joinpath(@__DIR__, "../log/")

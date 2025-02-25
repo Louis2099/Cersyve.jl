@@ -102,9 +102,9 @@ function pretrain_Q(
 
     #TODO: for mul model
     optim = Optimisers.setup(Optimisers.AdamW(lr, (0.9, 0.999), weight_decay), Q_model)
-    Optimisers.freeze!(optim.layers[1].layers[1].layers[1])
+    # Optimisers.freeze!(optim.layers[1].layers[1].layers[1])
     # Optimisers.freeze!(optim.layers[1].layers[2].layers[1])
-    Optimisers.freeze!(optim.layers[2])
+    # Optimisers.freeze!(optim.layers[2])
 
 
 
@@ -142,7 +142,7 @@ function pretrain_Q(
         #TODO: learning target can be pi or argmin
         # v_targ = (1 - gamma) * max.(c, c_prime) + gamma * max.(max.(c, c_prime), Q_model(state_action_prime))
         # v_targ = (1 - gamma) * c + gamma * max.(c, Q_model(state_action_prime))
-        argmin_Q = create_x_mul_xu_Q_interval(Q_model, task.x_dim, task.u_dim, task.u_low, task.u_high)
+        argmin_Q = create_baseline_affine_Q_interval(Q_model, task.x_dim, task.u_dim, task.u_low, task.u_high)
         v_targ = (1 - gamma) * max.(c, c_prime) + gamma * max.(max.(c, c_prime), argmin_Q(state_action_prime))
 
         #TODO: use f and pi, get MC learning target
