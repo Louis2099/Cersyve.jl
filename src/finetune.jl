@@ -332,6 +332,7 @@ function finetune_Q(
 
     Q_h_model = create_Q_constraint_model(Q_model, h_model, task)
     Q_Q_prime_model, affine_Q_interval = create_Q_Q_prime(Q_model, f_pi_model, f_model, task)
+    Q_Q_max_prime_model, Q_max = create_Q_Q_max_prime(Q_model, f_pi_model, f_model, task)
 
 
     con_update = 0
@@ -517,6 +518,7 @@ function finetune_Q(
             Optimisers.update!(opt_state_all, Q_model, grad[1])
             # Optimisers.update!(opt_state_u, Q_model, grad[1])
             Q_Q_prime_model, affine_Q_interval = create_Q_Q_prime(Q_model, f_pi_model, f_model, task)
+            Q_Q_max_prime_model, Q_max = create_Q_Q_max_prime(Q_model, f_pi_model, f_model, task)
             
             with_logger(logger) do
                 @info "finetune" sample_size=n log_step_increment=0
@@ -538,7 +540,10 @@ function finetune_Q(
         if skipped == max_skip
             jldsave(joinpath(log_path, "Q_finetune.jld2"); state=Flux.state(Q_model))
             println("----- Verification Starts -----")
-            con_res, inv_res = verify_value(x_low, x_high, Q_h_model, Q_Q_prime_model;
+            # con_res, inv_res = verify_value(x_low, x_high, Q_h_model, Q_Q_prime_model;
+            #     con_start_values=con_start_values, inv_start_values=inv_start_values, tol=tol)
+
+            con_res, inv_res = verify_value(x_low, x_high, Q_h_model, Q_Q_max_prime_model;
                 con_start_values=con_start_values, inv_start_values=inv_start_values, tol=tol)
             println("----- Verification Ends -----")
 
