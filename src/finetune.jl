@@ -537,8 +537,15 @@ function finetune_Q(
         if skipped == max_skip
             jldsave(joinpath(log_path, "Q_finetune.jld2"); state=Flux.state(Q_model))
             println("----- Verification Starts -----")
+            
+            
             con_res, inv_res = verify_value(x_low, x_high, Q_h_model, Q_Q_prime_model;
                 con_start_values=con_start_values, inv_start_values=inv_start_values, tol=tol)
+            
+                # Q_Q_max_prime_model, max_Q = create_Q_Q_max_prime(Q_model, f_pi_model, f_model, task)
+            # con_res, inv_res = verify_value(x_low, x_high, Q_h_model, Q_Q_max_prime_model;
+            #     con_start_values=con_start_values, inv_start_values=inv_start_values, tol=tol)
+            
             println("----- Verification Ends -----")
 
             verified += 1
