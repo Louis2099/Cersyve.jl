@@ -297,6 +297,19 @@ function weight_lu(W::AbstractMatrix)
     return new_W
 end
 
+function weight_ul(W::AbstractMatrix)
+    # Split the weight matrix into positive and negative components
+    W_plus = max.(W, 0)  # Element-wise maximum 
+    W_minus = min.(W, 0) # Element-wise minimum
+    
+    # Construct the new weight matrix
+    new_W = [zeros(size(W)) zeros(size(W)) W_plus W_minus;
+            W_plus W_minus zeros(size(W)) zeros(size(W))]
+
+    # println("new_W shape", size(new_W))
+    return new_W
+end
+
 function bias_lu(b::AbstractVector)
     new_b = [b; b]
     
@@ -326,6 +339,16 @@ function weight_l_small(W::AbstractMatrix)
     return new_W
 end
 
+function weight_u_small(W::AbstractMatrix)
+    # Split the weight matrix into positive and negative components
+    W_plus = max.(W, 0)  # Element-wise maximum 
+    W_minus = min.(W, 0) # Element-wise minimum
+    
+    # Construct the new weight matrix
+    new_W = [W_minus W_plus]
+    # println("new_W shape", size(new_W))
+    return new_W
+end
 
 function weight_lu_big(W::AbstractMatrix)
     # Split the weight matrix into positive and negative components
@@ -1233,6 +1256,32 @@ function create_baseline_affine_Q_interval(affine_Q, x_dim, u_dim, u_low, u_high
     )
     return model
 end
+
+function create_baseline_affine_Q_argmax(affine_Q, x_dim, u_dim, u_low, u_high)
+    x_2_x_luul = Dense(replace_weight_xu_lu(x_dim, u_dim), replace_bias_xu_lu(u_high, u_low, x_dim, u_dim))
+
+    h1_w = affine_Q[1].weight
+    h1_b = affine_Q[1].bias
+    x_lu_2_h1_lu = Dense(weight_lu(h1_w), bias_lu(h1_b))
+
+    h2_w = affine_Q[2].weight
+    h2_b = affine_Q[2].bias   
+    h1_lu_2_h2_lu = Dense(weight_lu(h2_w), bias_lu(h2_b))
+
+
+    h3_w = affine_Q[3].weight
+    h3_b = affine_Q[3].bias
+    h2_lu_2_h3_u = Dense(weight_u_small(h3_w), h3_b)
+    
+
+    model = Chain(
+        x_2_x_luul,
+        x_lu_2_h1_lu,
+        h1_lu_2_h2_lu,
+        h2_lu_2_h3_u
+    )
+    return model
+end
     
 
 function create_Q_constraint_model(Q_model, h_model, task)
@@ -1288,4 +1337,29 @@ function create_Q_Q_prime(affine_Q, f_pi_model, f_model, task)
         # Chain(filter_x, f_pi_model, expand_layer, affine_Q_interval, Dense(Float32[0; 1;;])),
         Chain(f_model, expand_layer, affine_Q_interval, Dense(Float32[0; 1;;])),
     )), affine_Q_interval
+end
+
+
+function create_Q_Q_max_prime(affine_Q, f_pi_model, f_model, task)
+    # creating Q_Q_max_prime
+    # affine_Q_interval = create_parallel_affine_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
+    # affine_Q_interval = create_mul_affine_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
+    # affine_Q_interval = create_mul_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
+    # affine_Q_interval = create_x_mul_xu_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
+    # affine_Q_interval = create_x_add_xu_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
+    Q_max = create_baseline_affine_Q_argmax(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
+    W_x = create_filter_matrix(1, task.x_dim, task.x_dim + task.u_dim)
+    b_x = zeros(task.x_dim)
+    filter_x = Dense(W_x, b_x)
+    
+    # expand_layer = create_expand_xu_layer(task.x_dim, task.u_dim)
+    expand_W = create_expand_matrix(1, task.x_dim, task.x_dim + task.u_dim)
+    expand_b = zeros(task.x_dim + task.u_dim)
+    expand_layer = Dense(expand_W, expand_b)
+    # println("PASS 2")
+    return Chain(Parallel(+,
+        Chain(affine_Q, Dense(Float32[1; 0;;])),
+        # Chain(filter_x, f_pi_model, expand_layer, affine_Q_interval, Dense(Float32[0; 1;;])),
+        Chain(f_model, expand_layer, Q_max, Dense(Float32[0; 1;;])),
+    )), Q_max
 end

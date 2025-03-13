@@ -535,6 +535,8 @@ function finetune_Q(
         end
 
         if skipped == max_skip
+            #TODO stop the finetuning once all counter-examples are eliminated
+            break
             jldsave(joinpath(log_path, "Q_finetune.jld2"); state=Flux.state(Q_model))
             println("----- Verification Starts -----")
             con_res, inv_res = verify_value(x_low, x_high, Q_h_model, Q_Q_prime_model;
