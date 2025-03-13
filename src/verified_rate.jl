@@ -147,8 +147,8 @@ function verify_rate(
     println("Verified Time: ", (verify_t))
     println("Saved final results to $(save_file)")
     
-    # Return the last verification results
-    # return (con_res, inv_res)
+        # Return the last verification results
+        # return (con_res, inv_res)
 end
 
 function verify_safeset_rate(
@@ -193,9 +193,10 @@ function verify_safeset_rate(
             collect_bound=true, start_values=con_start_values)
         @printf "Safety %s! Verification time: %.3fs\n" con_res.status con_t
         if con_res.status != :holds
-            safe = true
         else
             safe = false
+            continue
+        end
             continue
 
 
@@ -288,13 +289,12 @@ function load_verification_results(file::String)
     println("=== Verification Metadata ===")
     for (key, value) in data["metadata"]
         println("$key: $value")
-        
+        println("===========================")
     end
-    println("===========================")
     return data
 end
 
-function filter_verified_safe_set(file::String, Q_max::Any, h::Any)
+function filter_verified_safe_set(file::String, Q_min::Any)
     data = load_verification_results(file)
     total = data["metadata"]["total_count"]
     verified_bounds = data["verified_bounds"]
@@ -302,11 +302,11 @@ function filter_verified_safe_set(file::String, Q_max::Any, h::Any)
     batch_l = hcat([l for (l, u) in verified_bounds]...)
     batch_u = hcat([u for (l, u) in verified_bounds]...)
     
-    h_values_l = h(batch_l)
-    h_values_u = h(batch_u)
+    Q_values_l = Q_min(batch_l)
+    Q_values_u = Q_min(batch_u)
     
     for i in 1:size(batch_l, 2)
-        if any(h_values_l[:, i] .< 0) || any(h_values_u[:, i] .< 0)
+        if any(Q_values_l[:, i] .< 0) || any(Q_values_u[:, i] .< 0)
             n_safe += 1
         end
     end
@@ -314,5 +314,4 @@ function filter_verified_safe_set(file::String, Q_max::Any, h::Any)
     println("Safe Rate: $(n_safe/total)")    
     
     return n_safe
-end
 end
