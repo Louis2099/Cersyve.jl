@@ -750,68 +750,7 @@ function create_mul_affine_Q(x_dim, u_dim, hidden_sizes=32, output_emb_dim = 8)
     return model
 end
 
-function function create_x_mul_xu_Q_argmax(affine_Q, x_dim, u_dim, u_low, u_high, output_emb_dim = 8)
-    W_x = create_filter_matrix(1, x_dim, x_dim + u_dim)
-    b_x = zeros(x_dim)
-    filter_x = Dense(W_x, b_x)
-    W_u = create_filter_matrix(x_dim + 1, x_dim + u_dim, x_dim + u_dim)
-    u_b = zeros(u_dim)
-    filter_u = Dense(W_u, u_b)
-    x_w1 = affine_Q[1][1][2].weight
-    x_b1 = affine_Q[1][1][2].bias
-    x_w2 = affine_Q[1][1][3].weight
-    x_b2 = affine_Q[1][1][3].bias
-    x_w3 = affine_Q[1][1][4].weight
-    x_b3 = affine_Q[1][1][4].bias
-    minmax_layer = Dense(weight_pos_neg(output_emb_dim), zeros(2*output_emb_dim), relu)
-    neg_layer = Dense(weight_neg(output_emb_dim), zeros(2*output_emb_dim))
-
-    x_2_x_luul = Dense(replace_weight_xu_luul(x_dim, u_dim), replace_bias_xu_luul(u_high, u_low, x_dim, u_dim))
-
-    h1_w = affine_Q[1][2][1].weight
-    h1_b = affine_Q[1][2][1].bias
-    x_luul_2_h1_luul = Dense(weight_luul(h1_w), bias_luul(h1_b), relu)
-
-    h2_w = affine_Q[1][2][2].weight
-    h2_b = affine_Q[1][2][2].bias   
-    h1_luul_2_h2_luul = Dense(weight_luul(h2_w), bias_luul(h2_b), relu)
-
-
-    Q_w = affine_Q[1][2][3].weight
-    Q_b = affine_Q[1][2][3].bias
-    h2_luul_2_Q_ul = Dense(weight_ul(Q_w), [Q_b;Q_b])
-
-
-    sum_layer = Dense(ones(1, 2*output_emb_dim), zeros(1))
-    # Branch 1
-    b1 = Chain(
-        filter_x,
-        Dense(x_w1, x_b1, relu),
-        Dense(x_w2, x_b2, relu),
-        Dense(x_w3, x_b3),
-        minmax_layer,
-        neg_layer
-    )
-
-    b_low = Chain(
-        x_2_x_luul,
-        x_luul_2_h1_luul,
-        h1_luul_2_h2_luul,
-        h2_luul_2_Q_ul
-    )
-    model = Chain(
-        Parallel(
-            .*, 
-            b1,
-            b_low
-            
-        ),
-        sum_layer
-
-    )
-    return model
-end
-(x_dim, u_dim, hidden_sizes=32, output_emb_dim = 8)
+function create_x_mul_xu_Q(x_dim, u_dim, hidden_sizes=32, output_emb_dim = 8)
     # can take both x and xu as input
     # function filter_x(input)
     #     return input[1:x_dim, :]

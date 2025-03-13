@@ -60,6 +60,9 @@ export uniform
 export minimize_Q
 export create_non_linear_dynamics_model
 export create_x_mul_xu_Q_interval_small
+export verify_rate
+export create_Q_Q_max_prime
+export load_verification_results
 
 
 include("2D_double_integrator.jl")
@@ -79,6 +82,7 @@ include("pretrain.jl")
 include("buffer.jl")
 include("search.jl")
 include("verify.jl")
+include("verified_rate.jl")
 include("finetune.jl")
 include("backtrack_u.jl")
 include("unicycle4D.jl")
