@@ -142,7 +142,8 @@ function pretrain_Q(
         #TODO: learning target can be pi or argmin
         # v_targ = (1 - gamma) * max.(c, c_prime) + gamma * max.(max.(c, c_prime), Q_model(state_action_prime))
         # v_targ = (1 - gamma) * c + gamma * max.(c, Q_model(state_action_prime))
-        argmin_Q = create_x_mul_xu_Q_interval(Q_model, task.x_dim, task.u_dim, task.u_low, task.u_high)
+        
+        argmin_Q = create_x_mul_xu_Q_interval_old(Q_model, task.x_dim, task.u_dim, task.u_low, task.u_high)
         v_targ = (1 - gamma) * max.(c, c_prime) + gamma * max.(max.(c, c_prime), argmin_Q(state_action_prime))
 
         #TODO: use f and pi, get MC learning target
@@ -196,19 +197,6 @@ function pretrain_Q(
         # Flux.update!(optim, Q_model, grad[1])
         with_logger(logger) do
             
-            # @info "pretrain" x_W=Q_model[1][1][3].weight[1] log_step_increment=0
-            # @info "pretrain" x_b=Q_model[1][1][3].bias[1] log_step_increment=0
-
-            # @info "pretrain" u_W=Q_model[1][2][2].weight[1] log_step_increment=0
-            # @info "pretrain" u_b=Q_model[1][2][2].bias[1] log_step_increment=0
-            
-            # @info "pretrain" x_W=Q_model[1][1][2].weight[1] log_step_increment=0
-            # @info "pretrain" x_b=Q_model[1][1][2].bias[1] log_step_increment=0
-
-            # @info "pretrain" u_W=Q_model[1][2][2].weight[1] log_step_increment=0
-            # @info "pretrain" u_b=Q_model[1][2][2].bias[1] log_step_increment=0
-
-            # @info "pretrain" scale_idx=branch_scale_idx log_step_increment=0
             @info "pretrain" loss=loss
             @info "pretrain" constraint_satisfying_rate=mean(c .<= 0) log_step_increment=0
             @info "pretrain" predicted_feasible_rate=mean(Q_model(state_action) .<= 0) log_step_increment=0

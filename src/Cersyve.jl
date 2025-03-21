@@ -59,11 +59,18 @@ export backtrack_GD_U
 export uniform
 export minimize_Q
 export create_non_linear_dynamics_model
+export create_x_mul_xu_Q_interval_old
 export create_x_mul_xu_Q_interval_small
 export verify_rate
+export verify_safeset_rate
 export create_Q_Q_max_prime
 export load_verification_results
-
+export filter_verified_safe_set
+export train_policy
+export create_policy
+export create_Q_Q_pi_prime
+export finetune_Q_pi
+export cotrain_Q_pi
 
 include("2D_double_integrator.jl")
 include("double_integrator.jl")
@@ -75,6 +82,8 @@ include("cart_pole.jl")
 include("point_mass.jl")
 include("robot_arm.jl")
 include("robot_dog.jl")
+include("train_policy.jl")
+
 
 include("utils.jl")
 include("model.jl")

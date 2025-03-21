@@ -1289,7 +1289,7 @@ function create_argmin_Q_constraint_model(Q_model, h_model, task)
     b_x = zeros(task.x_dim)
     filter_x = Dense(W_x, b_x)
     W_u = create_filter_matrix(1, task.u_dim, task.u_dim)
-    affine_Q_interval = create_x_mul_xu_Q_interval(Q_model, task.x_dim, task.u_dim, task.u_low, task.u_high)
+    affine_Q_interval = create_x_mul_xu_Q_interval_old(Q_model, task.x_dim, task.u_dim, task.u_low, task.u_high)
 
     return Chain(Parallel(+,
         Chain(affine_Q_interval,  Dense(Float32[1; 0;;])),
@@ -1302,7 +1302,7 @@ function create_Q_Q_prime(affine_Q, f_pi_model, f_model, task)
     # affine_Q_interval = create_parallel_affine_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
     # affine_Q_interval = create_mul_affine_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
     # affine_Q_interval = create_mul_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
-    affine_Q_interval = create_x_mul_xu_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
+    affine_Q_interval = create_x_mul_xu_Q_interval_old(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
     # affine_Q_interval = create_x_add_xu_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
     W_x = create_filter_matrix(1, task.x_dim, task.x_dim + task.u_dim)
     b_x = zeros(task.x_dim)
@@ -1318,6 +1318,25 @@ function create_Q_Q_prime(affine_Q, f_pi_model, f_model, task)
         # Chain(filter_x, f_pi_model, expand_layer, affine_Q_interval, Dense(Float32[0; 1;;])),
         Chain(f_model, expand_layer, affine_Q_interval, Dense(Float32[0; 1;;])),
     )), affine_Q_interval
+end
+
+function create_policy(input_dim, output_dim, hidden_sizes, task::Any)
+    u_dim = task.u_dim
+    u_high = task.u_high
+    u_low = task.u_low
+    layers = []
+    push!(layers, Dense(input_dim => hidden_sizes[1], relu))
+    for i in 1:length(hidden_sizes) - 1
+        push!(layers, Dense(hidden_sizes[i] => hidden_sizes[i + 1], relu))
+    end
+    push!(layers, Dense(hidden_sizes[end] => output_dim))
+    println("length of layers:", length(layers))
+    return Chain(layers...,
+    Dense(Matrix{Float32}(I(u_dim)), -u_low, relu),
+    Dense(Matrix{Float32}(I(u_dim)), u_low),
+    # min(u, u_high) = -max(-x, -u_high) = -relu(-x + u_high) + u_high
+    Dense(Matrix{Float32}(-I(u_dim)), u_high, relu),
+    Dense(Matrix{Float32}(-I(u_dim)), u_high))
 end
 
 function create_Q_Q_max_prime(affine_Q, f_pi_model, f_model, task)
@@ -1342,4 +1361,45 @@ function create_Q_Q_max_prime(affine_Q, f_pi_model, f_model, task)
         # Chain(filter_x, f_pi_model, expand_layer, affine_Q_interval, Dense(Float32[0; 1;;])),
         Chain(f_model, expand_layer, Q_max, Dense(Float32[0; 1;;])),
     )), Q_max
+end
+
+function create_Q_pi_prime(affine_Q, pi_model, f_model, task)
+    x_expand = create_expand_matrix(1, task.x_dim, task.x_dim + task.u_dim)
+    u_expand = create_expand_matrix(task.x_dim+1, task.x_dim + task.u_dim, task.x_dim + task.u_dim)
+    expand_b = zeros(task.x_dim + task.u_dim)
+    x_exp_layer = Dense(x_expand, expand_b)
+    u_exp_layer = Dense(u_expand, expand_b)
+
+
+    return Chain(Parallel(+, 
+            Chain(f_model, x_exp_layer),
+            Chain(f_model, pi_model, u_exp_layer)
+            ),
+        affine_Q
+    )
+end
+
+
+function create_Q_Q_pi_prime(affine_Q, pi_model, f_model, task)
+    # creating Q_prime
+    # affine_Q_interval = create_parallel_affine_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
+    # affine_Q_interval = create_mul_affine_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
+    # affine_Q_interval = create_mul_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
+    # affine_Q_interval = create_x_mul_xu_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
+    # affine_Q_interval = create_x_add_xu_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
+    W_x = create_filter_matrix(1, task.x_dim, task.x_dim + task.u_dim)
+    b_x = zeros(task.x_dim)
+    filter_x = Dense(W_x, b_x)
+    
+    # expand_layer = create_expand_xu_layer(task.x_dim, task.u_dim)
+    expand_W = create_expand_matrix(1, task.x_dim, task.x_dim + task.u_dim)
+    expand_b = zeros(task.x_dim + task.u_dim)
+    expand_layer = Dense(expand_W, expand_b)
+
+    Q_pi_prime_model = create_Q_pi_prime(affine_Q, pi_model, f_model, task)
+    # println("PASS 2")
+    return Chain(Parallel(+,
+        Chain(affine_Q, Dense(Float32[1; 0;;])),
+        Chain(Q_pi_prime_model, Dense(Float32[0; 1;;]))
+    )), Q_pi_prime_model
 end
