@@ -343,6 +343,151 @@ end
 
 
 
+function boundary_guided_search_Q_pi(
+    task::Any,
+    x::Matrix{Float32},
+    x_low::Vector{Float32},
+    x_high::Vector{Float32},
+    h_model::Any,
+    Q_model::Any,
+    Q_interval::Any;
+    pgd_step::Int64 = 10,
+    pgd_eps::Float64 = 0.1,
+    pgd_beta::Float64 = 0.0,
+    backtrack_step::Int64 = 20,
+    length_discount::Float64 = 0.8,
+    bound_guide::Bool = true,
+    direct_discount::Float64 = 0.5,
+    tol::Float64 = 1e-4,
+    mode::String = "uni",
+)::Matrix{Float32}
+    pgd = ones(Bool, size(x, 2))
+    x_pgd = x
+    m = zeros(Float32, size(x))
+
+    for _ in 1:pgd_step
+        h = h_model(x_pgd[1:task.x_dim, :])[1, :]
+        v = Q_model(x_pgd)[1, :]
+        
+        # min_v = Q_interval(x_pgd)[1, :]
+        # min_v_prime = Q_interval(vcat(f_pi_model(x_pgd[1:task.x_dim,:]), zeros(task.u_dim, size(x_pgd, 2))))[1, :]
+        min_v_prime = Q_interval(x_pgd)[1, :]
+        
+        # con = ((v .<= tol) .& (h .> -tol)) .| ((min_v .<= tol) .& (h .> -tol))
+        con = ((v .<= tol) .& (h .> -tol))
+        inv = (v .<= tol) .& (min_v_prime .> -tol) .& (.~con)
+        
+        pgd_pgd = pgd[pgd]
+        pgd_pgd[con .| inv] .= 0
+        pgd[pgd] = pgd_pgd
+        x_pgd = x[:, pgd]
+        
+        if mode == "uni"
+            con_g = Flux.gradient(x -> sum(h_model(x[1:task.x_dim, :])), x_pgd[:, 1:div(size(x_pgd, 2), 2)])[1]
+            inv_g = Flux.gradient(x -> sum(Q_interval(x)), x_pgd[:, size(con_g, 2) + 1:end])[1]
+            g = hcat(con_g, inv_g) + Float32(pgd_beta) * m[:, pgd]
+        elseif mode == "con"
+            con_g = Flux.gradient(x -> sum(h_model(x[1:task.x_dim, :])), x_pgd[:, 1:div(size(x_pgd, 2), 2)])[1]
+            g = con_g + Float32(pgd_beta) * m[:, pgd]
+        elseif mode == "inv"
+            inv_g = Flux.gradient(x -> sum(Q_interval(x)), x_pgd[:, size(con_g, 2) + 1:end])[1]
+            g = inv_g + Float32(pgd_beta) * m[:, pgd]
+        end
+
+        g ./= sqrt.(sum(g .^ 2, dims=1))
+
+        v_g = Flux.gradient(x -> sum(Q_model(x)), x_pgd)[1]
+        v_g ./= sqrt.(sum(v_g .^ 2, dims=1))
+
+        a = sum(g .* v_g, dims=1)
+        z = a .* g - v_g
+        z ./= sqrt.(sum(z .^ 2, dims=1))
+
+        dirc = zeros(Float32, size(x_pgd))
+        coef = zeros(Float32, size(x_pgd, 2))
+        tmp = ones(Bool, size(x_pgd, 2))
+
+        for i in 1:backtrack_step + 1
+            if bound_guide
+                d_coef = Float32(direct_discount ^ (i - 1))
+                d = d_coef * g[:, tmp] + (1 - d_coef) * z[:, tmp]
+                d ./= sqrt.(sum(d .^ 2, dims=1))
+            else
+                d = g[:, tmp]
+            end
+
+            l_coef = Float32(length_discount ^ (i - 1))
+            x_tmp = x_pgd[:, tmp] + Float32.(l_coef * pgd_eps) * d
+            x_tmp = min.(max.(x_tmp, x_low), x_high)
+
+            fea = Q_model(x_tmp)[1, :] .<= tol
+
+            dirc[:, tmp] = d
+
+            coef_tmp = coef[tmp]
+            coef_tmp[fea] .= l_coef
+            coef[tmp] = coef_tmp
+
+            tmp_tmp = tmp[tmp]
+            tmp_tmp[fea] .= 0
+            tmp[tmp] = tmp_tmp
+
+            if maximum(tmp; init=0) == 0
+                break
+            end
+        end
+        dx = reshape(coef, 1, size(x_pgd, 2)) .* dirc
+        x_pgd = x_pgd + Float32(pgd_eps) * dx
+        x_pgd = min.(max.(x_pgd, x_low), x_high)
+        x[:, pgd] = x_pgd
+
+        m_pgd = m[:, pgd]
+        m_pgd[:, .~tmp] = dx[:, .~tmp]
+        m[:, pgd] = m_pgd
+    end
+    return x
+end
+
+
+function filter_counterexample_Q_pi(
+    task::Any,
+    xu::Matrix{Float32},
+    h_model::Any,
+    Q_model::Any,
+    interval_Q_model::Any,
+    pi_model;
+    tol::Float64 = 1e-4,
+)::Tuple{BitVector, BitVector, BitVector}
+    h = h_model(xu[1:task.x_dim,:])[1, :]
+    v = Q_model(xu)[1, :]
+    
+
+    min_v_prime = interval_Q_model(xu)[1, :]
+    min_v = Q_model(vcat(xu[1:task.x_dim,:], pi_model(xu[1:task.x_dim,:])))[1, :]
+    # min_v_prime = interval_Q_model(vcat(f_pi_model(xu[1:task.x_dim,:]), zeros(task.u_dim, size(xu, 2))))[1, :]
+    # min_v_prime = interval_Q_model(vcat(f_model(xu), zeros(task.u_dim, size(xu, 2))))[1, :]
+    
+    # con = ((v .<= tol) .& (h .> -tol))
+    # inv = (v .<= tol) .& (min_v_prime .> -tol) .& (.~con)
+    
+    # con = ((v .<= tol) .& (h .> -tol)) .| ((min_v .<= tol) .& (h .> -tol))
+    con = ((v .<= tol) .& (h .> -tol))
+    arg_con = ((min_v .<= tol) .& (h .> -tol)).& (.~con)
+    inv = (v .<= tol) .& (min_v_prime .> -tol) .& (.~con) .& (.~arg_con)
+    # con = ((v .<= tol) .& (h .> -tol))
+    # arg_con = ((min_v .<= tol) .& (h .> -tol))
+    # inv = (v .<= tol) .& (min_v_prime .> -tol)
+
+    #TODO: Double posi-boundary
+    # con = (v .<= -tol) .& (h .> tol)
+    # inv = (v .<= -tol) .& (min_v_prime .> tol) .& (.~con)
+
+    # con = (v .<= -tol) .& (h .> 0.0)
+    # inv = (v .<= -tol) .& (min_v_prime .> 0.0) .& (.~con)
+
+    return con, arg_con, inv
+end
+
 
 function filter_counterexample_Q(
     task::Any,
@@ -366,11 +511,9 @@ function filter_counterexample_Q(
     # inv = (v .<= tol) .& (min_v_prime .> -tol) .& (.~con)
     
     # con = ((v .<= tol) .& (h .> -tol)) .| ((min_v .<= tol) .& (h .> -tol))
-    # con = ((v .<= tol) .& (h .> -tol))
-    # arg_con = ((min_v .<= tol) .& (h .> -tol)).& (.~con)
-    # # arg_con = ((min_v .<= tol) .& (h .> -tol)) .& (.~con)
-    # inv = (v .<= tol) .& (min_v_prime .> -tol) .& (.~con) .& (.~arg_con)
-    
+    con = ((v .<= tol) .& (h .> -tol))
+    arg_con = ((min_v .<= tol) .& (h .> -tol)).& (.~con)
+    inv = (v .<= tol) .& (min_v_prime .> -tol) .& (.~con) .& (.~arg_con)
     # con = ((v .<= tol) .& (h .> -tol))
     # arg_con = ((min_v .<= tol) .& (h .> -tol))
     # inv = (v .<= tol) .& (min_v_prime .> -tol)
