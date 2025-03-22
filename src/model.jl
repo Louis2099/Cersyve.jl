@@ -468,7 +468,7 @@ function create_mul_Q_interval(affine_Q, x_dim, u_dim, u_low, u_high, output_emb
     Q_w = affine_Q[1][2][4].weight
     Q_b = affine_Q[1][2][4].bias
     # println("shape of Q_w", size(Q_w))
-    h2_luul_2_Q_lu = Dense(weight_lu(Q_w), [Q_b;Q_b])
+    h2_luul_2_Q_lu = Dense(weight_lu_big(Q_w), [Q_b;Q_b])
 
 
     sum_layer = Dense(ones(1, 2*output_emb_dim), zeros(1))
@@ -1300,8 +1300,8 @@ end
 function create_Q_Q_prime(affine_Q, f_pi_model, f_model, task)
     # creating Q_prime
     # affine_Q_interval = create_parallel_affine_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
-    affine_Q_interval = create_mul_affine_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
-    # affine_Q_interval = create_mul_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
+    # affine_Q_interval = create_mul_affine_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
+    affine_Q_interval = create_mul_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
     # affine_Q_interval = create_x_mul_xu_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
     # affine_Q_interval = create_x_add_xu_Q_interval(affine_Q, task.x_dim, task.u_dim, task.u_low, task.u_high)
     W_x = create_filter_matrix(1, task.x_dim, task.x_dim + task.u_dim)

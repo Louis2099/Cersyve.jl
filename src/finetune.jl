@@ -476,8 +476,8 @@ function finetune_Q(
             
             # regular
             loss, grad = Flux.withgradient(con_loss_fn, Q_model)
-            # Optimisers.update!(opt_state_all, Q_model, grad[1])
-            Optimisers.update!(opt_state_u, Q_model, grad[1])
+            Optimisers.update!(opt_state_all, Q_model, grad[1])
+            # Optimisers.update!(opt_state_u, Q_model, grad[1])
             Q_Q_prime_model, affine_Q_interval = create_Q_Q_prime(Q_model, f_pi_model, f_model, task)
             
             with_logger(logger) do
